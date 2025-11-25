@@ -1,5 +1,6 @@
-import React, { useMemo } from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, AreaChart, Area } from 'recharts';
+
+import React, { useMemo, useState } from 'react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, AreaChart, Area, BarChart, Bar } from 'recharts';
 import { LoadProfile } from '../types';
 import { MONTH_NAMES } from '../constants';
 
@@ -8,37 +9,22 @@ interface LoadChartsProps {
 }
 
 export const LoadCharts: React.FC<LoadChartsProps> = ({ loadProfile }) => {
-  
-  // Calculate Full Year Synthetic Data if hourlyData is missing for metrics
+  const [chartView, setChartView] = useState<'daily'|'weekly'|'annual_monthly'|'annual_hourly'>('daily');
+
+  // Generate or Use Hourly Data
   const hourlyData = useMemo(() => {
      if (loadProfile.hourlyData && loadProfile.hourlyData.length === 8760) return loadProfile.hourlyData;
-     
-     const generated = [];
-     for (let d = 0; d < 365; d++) {
-        const isWeekend = (d % 7) === 0 || (d % 7) === 6;
-        for (let h = 0; h < 24; h++) {
-           const base = loadProfile.baseLoadKw;
-           const peak = loadProfile.peakLoadKw;
-           let factor = 0.1;
-           if (!isWeekend) {
-               if ((h >= 7 && h <= 9) || (h >= 18 && h <= 22)) factor = 0.9;
-               else if (h > 9 && h < 18) factor = 0.4;
-           } else {
-               if (h > 9 && h < 22) factor = 0.6;
-           }
-           generated.push(base + (peak - base) * factor);
-        }
-     }
-     return generated;
+     return []; // Should handle synthetic generation if missing, but App.tsx ensures it exists
   }, [loadProfile]);
 
   // Metrics
   const metrics = useMemo(() => {
+     if (hourlyData.length === 0) return { total: 0, max: 0, avgYear: 0, avgSun: 0 };
+     
      const total = hourlyData.reduce((a,b)=>a+b, 0);
      const max = Math.max(...hourlyData);
      const avgYear = total / 8760;
      
-     // Avg during sun hours (approx 9h to 17h for simplicity across year)
      let sunSum = 0;
      let sunCount = 0;
      hourlyData.forEach((val, idx) => {
@@ -53,57 +39,66 @@ export const LoadCharts: React.FC<LoadChartsProps> = ({ loadProfile }) => {
      return { total, max, avgYear, avgSun };
   }, [hourlyData]);
 
-  // Prepare Daily Profile (0-23h)
+  // 1. Daily Profile (Average)
   const dailyData = useMemo(() => {
-    // If we have imported data, we average the 8760h to get a representative daily curve
-    if (loadProfile.type === 'imported' && loadProfile.hourlyData) {
-        const hours = new Array(24).fill(0);
-        const counts = new Array(24).fill(0);
-        loadProfile.hourlyData.forEach((val, idx) => {
-            const h = idx % 24;
-            hours[h] += val;
-            counts[h]++;
-        });
-        return hours.map((sum, h) => ({
-            hour: `${h}h`,
-            load: parseFloat((sum / counts[h]).toFixed(3))
-        }));
-    }
-
-    // Default simplified gen
-    const data = [];
-    const base = loadProfile.baseLoadKw;
-    const peak = loadProfile.peakLoadKw;
-    for (let h = 0; h < 24; h++) {
-        let val = base;
-        if ((h >= 7 && h <= 9) || (h >= 18 && h <= 22)) val += (peak - base) * 0.9;
-        else if (h > 9 && h < 18) val += (peak - base) * 0.4;
-        data.push({ hour: `${h}h`, load: val });
-    }
-    return data;
-  }, [loadProfile]);
-
-  // Prepare Monthly/Annual Data
-  const monthlyData = useMemo(() => {
-    if (loadProfile.type === 'imported' && loadProfile.hourlyData) {
-        const months = new Array(12).fill(0);
-        // Approx 730 hours per month
-        loadProfile.hourlyData.forEach((val, idx) => {
-            const monthIdx = Math.min(11, Math.floor(idx / 730.5));
-            months[monthIdx] += val;
-        });
-        return MONTH_NAMES.map((m, i) => ({
-            name: m,
-            kwh: Math.round(months[i])
-        }));
-    }
-
-    const avgMonth = loadProfile.annualConsumptionKwh / 12;
-    return MONTH_NAMES.map((m, i) => {
-        const factor = 1 + (Math.cos(2 * Math.PI * i / 12) * 0.2); 
-        return { name: m, kwh: Math.round(avgMonth * factor) };
+    const hours = new Array(24).fill(0);
+    const counts = new Array(24).fill(0);
+    hourlyData.forEach((val, idx) => {
+        const h = idx % 24;
+        hours[h] += val;
+        counts[h]++;
     });
-  }, [loadProfile]);
+    return hours.map((sum, h) => ({
+        hour: `${h}h`,
+        load: parseFloat((sum / (counts[h]||1)).toFixed(3))
+    }));
+  }, [hourlyData]);
+
+  // 2. Weekly Profile (Mon-Sun)
+  const weeklyData = useMemo(() => {
+      // 0=Sun, 1=Mon ... 6=Sat. We want Mon(1) to Sun(0)
+      const days = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+      const sums = new Array(7).fill(0);
+      const counts = new Array(7).fill(0);
+      
+      hourlyData.forEach((val, idx) => {
+          const dayIdx = Math.floor(idx / 24) % 7; // 0 is Jan 1st. Assumed Sunday for 2023
+          sums[dayIdx] += val;
+          counts[dayIdx]++;
+      });
+
+      // Reorder to Mon-Sun
+      const order = [1, 2, 3, 4, 5, 6, 0];
+      return order.map(d => ({
+          name: days[d],
+          avgLoad: parseFloat((sums[d] / (counts[d]*24)).toFixed(3)) // Avg kW
+      }));
+  }, [hourlyData]);
+
+  // 3. Monthly Data
+  const monthlyData = useMemo(() => {
+    const months = new Array(12).fill(0);
+    hourlyData.forEach((val, idx) => {
+        const monthIdx = Math.min(11, Math.floor(idx / 730.5));
+        months[monthIdx] += val;
+    });
+    return MONTH_NAMES.map((m, i) => ({
+        name: m,
+        kwh: Math.round(months[i])
+    }));
+  }, [hourlyData]);
+
+  // 4. Annual Hourly (Downsampled for performance)
+  const annualHourlyData = useMemo(() => {
+      // Group by day to reduce points from 8760 to 365
+      const data = [];
+      for(let d=0; d<365; d++) {
+          let sum = 0;
+          for(let h=0; h<24; h++) sum += hourlyData[d*24 + h] || 0;
+          data.push({ day: d, load: sum }); // Daily kWh
+      }
+      return data;
+  }, [hourlyData]);
 
   return (
     <div className="space-y-6">
@@ -132,50 +127,54 @@ export const LoadCharts: React.FC<LoadChartsProps> = ({ loadProfile }) => {
                      <td className="p-3 font-semibold bg-gray-50">Máximo Anual (kW)</td>
                      <td className="p-3 font-bold">{metrics.max.toFixed(3)} kW</td>
                  </tr>
-                 <tr>
-                     <td className="p-3 font-semibold bg-gray-50">Potência de Ponta Config.</td>
-                     <td className="p-3">{loadProfile.peakLoadKw} kW</td>
-                 </tr>
-                 <tr>
-                     <td className="p-3 font-semibold bg-gray-50">Potência de Vazio Config.</td>
-                     <td className="p-3">{loadProfile.baseLoadKw} kW</td>
-                 </tr>
              </tbody>
          </table>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Daily Curve */}
-        <div className="bg-white p-4 rounded shadow border">
-          <h4 className="font-bold text-gray-700 mb-4">Perfil Diário Médio (kW)</h4>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={dailyData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="hour" />
-                <YAxis />
-                <Tooltip />
-                <Line type="monotone" dataKey="load" stroke="#8884d8" strokeWidth={2} dot={false} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
+      {/* Chart Tabs */}
+      <div className="flex border-b space-x-4">
+          <button onClick={()=>setChartView('daily')} className={`py-2 px-4 border-b-2 ${chartView==='daily'?'border-blue-600 text-blue-600':'border-transparent text-gray-500'}`}>Diário</button>
+          <button onClick={()=>setChartView('weekly')} className={`py-2 px-4 border-b-2 ${chartView==='weekly'?'border-blue-600 text-blue-600':'border-transparent text-gray-500'}`}>Semanal</button>
+          <button onClick={()=>setChartView('annual_monthly')} className={`py-2 px-4 border-b-2 ${chartView==='annual_monthly'?'border-blue-600 text-blue-600':'border-transparent text-gray-500'}`}>Mensal</button>
+          <button onClick={()=>setChartView('annual_hourly')} className={`py-2 px-4 border-b-2 ${chartView==='annual_hourly'?'border-blue-600 text-blue-600':'border-transparent text-gray-500'}`}>Anual</button>
+      </div>
 
-        {/* Annual Curve */}
-        <div className="bg-white p-4 rounded shadow border">
-          <h4 className="font-bold text-gray-700 mb-4">Consumo Mensal (kWh)</h4>
-          <div className="h-64">
-             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={monthlyData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" />
-                <YAxis />
-                <Tooltip />
-                <Area type="monotone" dataKey="kwh" stroke="#3b82f6" fill="#3b82f6" />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
+      <div className="bg-white p-4 rounded shadow border h-80">
+        <ResponsiveContainer width="100%" height="100%">
+            {chartView === 'daily' ? (
+                <LineChart data={dailyData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="hour" />
+                    <YAxis label={{value:'kW', angle:-90, position:'insideLeft'}}/>
+                    <Tooltip />
+                    <Line type="monotone" dataKey="load" name="Carga Média (kW)" stroke="#3b82f6" strokeWidth={2} dot={false} />
+                </LineChart>
+            ) : chartView === 'weekly' ? (
+                <BarChart data={weeklyData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" />
+                    <YAxis label={{value:'kW Médio', angle:-90, position:'insideLeft'}}/>
+                    <Tooltip />
+                    <Bar dataKey="avgLoad" name="Carga Média (kW)" fill="#8b5cf6" />
+                </BarChart>
+            ) : chartView === 'annual_monthly' ? (
+                <BarChart data={monthlyData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" />
+                    <YAxis label={{value:'kWh', angle:-90, position:'insideLeft'}}/>
+                    <Tooltip />
+                    <Bar dataKey="kwh" name="Consumo (kWh)" fill="#10b981" />
+                </BarChart>
+            ) : (
+                <AreaChart data={annualHourlyData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="day" label={{value:'Dia do Ano', position:'insideBottom', offset:-5}} />
+                    <YAxis label={{value:'kWh/dia', angle:-90, position:'insideLeft'}}/>
+                    <Tooltip />
+                    <Area type="monotone" dataKey="load" name="Consumo Diário (kWh)" stroke="#f59e0b" fill="#fcd34d" />
+                </AreaChart>
+            )}
+        </ResponsiveContainer>
       </div>
 
     </div>

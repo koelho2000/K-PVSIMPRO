@@ -1,5 +1,4 @@
 
-
 import { SolarPanel, Inverter, Battery } from './types';
 
 export const APP_VERSION = "1.5.0-Pro";
@@ -309,76 +308,101 @@ export const PORTUGAL_MUNICIPALITIES = [
 ];
 
 export const PANELS_DB: SolarPanel[] = [
-  { id: 'p1', manufacturer: 'SunPower', model: 'Maxeon 6', powerW: 425, widthMm: 1032, heightMm: 1872, efficiency: 0.228, price: 250, voc: 75.6, isc: 7.15, vmp: 62.1, imp: 6.85, tempCoeffVoc: -0.27 },
-  { id: 'p2', manufacturer: 'Longi', model: 'Hi-MO 5', powerW: 540, widthMm: 1134, heightMm: 2278, efficiency: 0.21, price: 180, voc: 49.6, isc: 13.9, vmp: 41.9, imp: 12.9, tempCoeffVoc: -0.27 },
-  { id: 'p3', manufacturer: 'Jinko', model: 'Tiger Neo', powerW: 475, widthMm: 1134, heightMm: 1903, efficiency: 0.22, price: 195, voc: 43.1, isc: 14.1, vmp: 35.2, imp: 13.5, tempCoeffVoc: -0.25 },
-  { id: 'p4', manufacturer: 'Canadian Solar', model: 'BiHiKu7', powerW: 600, widthMm: 1303, heightMm: 2172, efficiency: 0.21, price: 220, voc: 41.5, isc: 18.4, vmp: 34.6, imp: 17.3, tempCoeffVoc: -0.26 },
-  { id: 'p5', manufacturer: 'Trina Solar', model: 'Vertex S+', powerW: 440, widthMm: 1134, heightMm: 1762, efficiency: 0.22, price: 160, voc: 52.2, isc: 10.7, vmp: 44.0, imp: 10.0, tempCoeffVoc: -0.24 },
-  { id: 'p6', manufacturer: 'JA Solar', model: 'DeepBlue 3.0', powerW: 550, widthMm: 1134, heightMm: 2279, efficiency: 0.213, price: 185, voc: 49.9, isc: 14.0, vmp: 41.8, imp: 13.2, tempCoeffVoc: -0.27 },
-  { id: 'p7', manufacturer: 'REC', model: 'Alpha Pure-R', powerW: 430, widthMm: 1118, heightMm: 1730, efficiency: 0.223, price: 240, voc: 59.4, isc: 9.3, vmp: 48.8, imp: 8.8, tempCoeffVoc: -0.24 },
-  { id: 'p8', manufacturer: 'Jinko', model: 'Tiger Pro 72HC', powerW: 545, widthMm: 1134, heightMm: 2274, efficiency: 0.213, price: 190, voc: 49.5, isc: 13.9, vmp: 40.8, imp: 13.4, tempCoeffVoc: -0.28 },
-  { id: 'p9', manufacturer: 'Trina Solar', model: 'Vertex S', powerW: 415, widthMm: 1096, heightMm: 1762, efficiency: 0.21, price: 155, voc: 49.2, isc: 10.6, vmp: 41.3, imp: 10.0, tempCoeffVoc: -0.25 },
-  { id: 'p10', manufacturer: 'Canadian Solar', model: 'HiKu6', powerW: 450, widthMm: 1048, heightMm: 2108, efficiency: 0.20, price: 170, voc: 49.1, isc: 11.6, vmp: 41.1, imp: 10.9, tempCoeffVoc: -0.27 },
-  { id: 'p11', manufacturer: 'Q CELLS', model: 'Q.PEAK DUO ML-G9', powerW: 390, widthMm: 1030, heightMm: 1840, efficiency: 0.206, price: 210, voc: 45.1, isc: 10.9, vmp: 37.8, imp: 10.3, tempCoeffVoc: -0.27 },
-  { id: 'p12', manufacturer: 'Meyer Burger', model: 'Black', powerW: 380, widthMm: 1041, heightMm: 1767, efficiency: 0.207, price: 280, voc: 44.8, isc: 10.7, vmp: 38.3, imp: 10.0, tempCoeffVoc: -0.25 }
+  // High Power / New Generation
+  { id: 'p13', manufacturer: 'AIKO', model: 'Neostar 2P A465-MAH54Mb', powerW: 465, widthMm: 1134, heightMm: 1722, depthMm: 30, weightKg: 21.5, efficiency: 0.238, price: 230, voc: 40.4, isc: 14.5, vmp: 34.2, imp: 13.6, tempCoeffVoc: -0.26 },
+  { id: 'p14', manufacturer: 'Longi', model: 'Hi-MO 6 LR5-72HTH-585M', powerW: 585, widthMm: 1134, heightMm: 2278, depthMm: 35, weightKg: 27.5, efficiency: 0.226, price: 210, voc: 52.6, isc: 14.3, vmp: 44.6, imp: 13.1, tempCoeffVoc: -0.23 },
+  { id: 'p15', manufacturer: 'Trina Solar', model: 'Vertex N TSM-695-DEG21C.20', powerW: 695, widthMm: 1303, heightMm: 2384, depthMm: 33, weightKg: 38.3, efficiency: 0.224, price: 260, voc: 48.3, isc: 18.3, vmp: 39.8, imp: 17.5, tempCoeffVoc: -0.24 },
+  { id: 'p16', manufacturer: 'Jinko', model: 'Tiger Neo JKM575N-72HL4-V', powerW: 575, widthMm: 1134, heightMm: 2278, depthMm: 35, weightKg: 28.0, efficiency: 0.223, price: 200, voc: 50.8, isc: 14.3, vmp: 42.4, imp: 13.5, tempCoeffVoc: -0.25 },
+  { id: 'p17', manufacturer: 'Canadian Solar', model: 'TopBiHiKu6 CS6W-550MS', powerW: 550, widthMm: 1134, heightMm: 2261, depthMm: 30, weightKg: 32.4, efficiency: 0.215, price: 195, voc: 49.6, isc: 14.0, vmp: 41.7, imp: 13.2, tempCoeffVoc: -0.26 },
+  
+  // Residential Standard
+  { id: 'p1', manufacturer: 'SunPower', model: 'Maxeon 6', powerW: 425, widthMm: 1032, heightMm: 1872, depthMm: 40, weightKg: 21.2, efficiency: 0.228, price: 250, voc: 75.6, isc: 7.15, vmp: 62.1, imp: 6.85, tempCoeffVoc: -0.27 },
+  { id: 'p7', manufacturer: 'REC', model: 'Alpha Pure-R', powerW: 430, widthMm: 1118, heightMm: 1730, depthMm: 30, weightKg: 21.5, efficiency: 0.223, price: 240, voc: 59.4, isc: 9.3, vmp: 48.8, imp: 8.8, tempCoeffVoc: -0.24 },
+  { id: 'p5', manufacturer: 'Trina Solar', model: 'Vertex S+ 440W', powerW: 440, widthMm: 1134, heightMm: 1762, depthMm: 30, weightKg: 21.0, efficiency: 0.22, price: 160, voc: 52.2, isc: 10.7, vmp: 44.0, imp: 10.0, tempCoeffVoc: -0.24 },
+  { id: 'p18', manufacturer: 'Q CELLS', model: 'Q.TRON BLK M-G2+ 430', powerW: 430, widthMm: 1134, heightMm: 1722, depthMm: 30, weightKg: 21.1, efficiency: 0.22, price: 215, voc: 38.5, isc: 13.7, vmp: 32.3, imp: 13.3, tempCoeffVoc: -0.28 },
+  { id: 'p19', manufacturer: 'Meyer Burger', model: 'Glass 390', powerW: 390, widthMm: 1041, heightMm: 1767, depthMm: 35, weightKg: 19.7, efficiency: 0.212, price: 280, voc: 44.7, isc: 10.9, vmp: 38.5, imp: 10.2, tempCoeffVoc: -0.25 },
+  
+  // Budget / Other
+  { id: 'p20', manufacturer: 'Tongwei', model: 'TW415MAP-108-H-S', powerW: 415, widthMm: 1134, heightMm: 1722, depthMm: 30, weightKg: 20.5, efficiency: 0.213, price: 130, voc: 37.4, isc: 13.9, vmp: 31.0, imp: 13.4, tempCoeffVoc: -0.27 },
+  { id: 'p21', manufacturer: 'Astronergy', model: 'Astro N5 CHSM54M-HC', powerW: 410, widthMm: 1134, heightMm: 1722, depthMm: 30, weightKg: 21.5, efficiency: 0.21, price: 125, voc: 37.2, isc: 13.7, vmp: 31.3, imp: 13.1, tempCoeffVoc: -0.26 },
+  { id: 'p22', manufacturer: 'SunPower', model: 'Performance 6', powerW: 410, widthMm: 1092, heightMm: 1808, depthMm: 30, weightKg: 21.0, efficiency: 0.208, price: 180, voc: 35.8, isc: 14.2, vmp: 29.9, imp: 13.7, tempCoeffVoc: -0.34 },
+  { id: 'p23', manufacturer: 'Hyundai', model: 'HiE-S410VG', powerW: 410, widthMm: 1140, heightMm: 1719, depthMm: 35, weightKg: 22.0, efficiency: 0.209, price: 175, voc: 46.4, isc: 11.0, vmp: 38.6, imp: 10.6, tempCoeffVoc: -0.27 },
+  { id: 'p24', manufacturer: 'Sharp', model: 'NU-JC420B', powerW: 420, widthMm: 1134, heightMm: 1722, depthMm: 30, weightKg: 20.7, efficiency: 0.215, price: 170, voc: 38.3, isc: 13.6, vmp: 32.1, imp: 13.1, tempCoeffVoc: -0.26 },
+
+  // Existing Legacy
+  { id: 'p2', manufacturer: 'Longi', model: 'Hi-MO 5 540', powerW: 540, widthMm: 1134, heightMm: 2278, depthMm: 35, weightKg: 27.5, efficiency: 0.21, price: 180, voc: 49.6, isc: 13.9, vmp: 41.9, imp: 12.9, tempCoeffVoc: -0.27 },
+  { id: 'p3', manufacturer: 'Jinko', model: 'Tiger Neo 475', powerW: 475, widthMm: 1134, heightMm: 1903, depthMm: 30, weightKg: 24.2, efficiency: 0.22, price: 195, voc: 43.1, isc: 14.1, vmp: 35.2, imp: 13.5, tempCoeffVoc: -0.25 },
+  { id: 'p4', manufacturer: 'Canadian Solar', model: 'BiHiKu7 600', powerW: 600, widthMm: 1303, heightMm: 2172, depthMm: 35, weightKg: 31.0, efficiency: 0.21, price: 220, voc: 41.5, isc: 18.4, vmp: 34.6, imp: 17.3, tempCoeffVoc: -0.26 },
+  { id: 'p6', manufacturer: 'JA Solar', model: 'DeepBlue 3.0 550', powerW: 550, widthMm: 1134, heightMm: 2279, depthMm: 35, weightKg: 28.5, efficiency: 0.213, price: 185, voc: 49.9, isc: 14.0, vmp: 41.8, imp: 13.2, tempCoeffVoc: -0.27 },
+  { id: 'p8', manufacturer: 'Jinko', model: 'Tiger Pro 72HC 545', powerW: 545, widthMm: 1134, heightMm: 2274, depthMm: 35, weightKg: 27.8, efficiency: 0.213, price: 190, voc: 49.5, isc: 13.9, vmp: 40.8, imp: 13.4, tempCoeffVoc: -0.28 },
+  { id: 'p9', manufacturer: 'Trina Solar', model: 'Vertex S 415', powerW: 415, widthMm: 1096, heightMm: 1762, depthMm: 30, weightKg: 21.8, efficiency: 0.21, price: 155, voc: 49.2, isc: 10.6, vmp: 41.3, imp: 10.0, tempCoeffVoc: -0.25 },
+  { id: 'p10', manufacturer: 'Canadian Solar', model: 'HiKu6 450', powerW: 450, widthMm: 1048, heightMm: 2108, depthMm: 35, weightKg: 24.3, efficiency: 0.20, price: 170, voc: 49.1, isc: 11.6, vmp: 41.1, imp: 10.9, tempCoeffVoc: -0.27 },
+  { id: 'p11', manufacturer: 'Q CELLS', model: 'Q.PEAK DUO ML-G9 390', powerW: 390, widthMm: 1030, heightMm: 1840, depthMm: 32, weightKg: 19.9, efficiency: 0.206, price: 210, voc: 45.1, isc: 10.9, vmp: 37.8, imp: 10.3, tempCoeffVoc: -0.27 },
+  { id: 'p12', manufacturer: 'Meyer Burger', model: 'Black 380', powerW: 380, widthMm: 1041, heightMm: 1767, depthMm: 35, weightKg: 19.7, efficiency: 0.207, price: 280, voc: 44.8, isc: 10.7, vmp: 38.3, imp: 10.0, tempCoeffVoc: -0.25 }
 ];
 
 export const INVERTERS_DB: Inverter[] = [
   // Small Residential
-  { id: 'i1', manufacturer: 'Huawei', model: 'SUN2000-5KTL', maxPowerKw: 5, phases: 3, efficiency: 0.98, price: 1200, maxDcVoltage: 1100, startVoltage: 200, mpptRange: [140, 980], maxInputCurrent: 13.5, numMppts: 2 },
-  { id: 'i2', manufacturer: 'Fronius', model: 'Primo 3.0', maxPowerKw: 3, phases: 1, efficiency: 0.97, price: 900, maxDcVoltage: 1000, startVoltage: 80, mpptRange: [80, 800], maxInputCurrent: 12, numMppts: 2 },
-  { id: 'i3', manufacturer: 'SMA', model: 'Sunny Tripower 10.0', maxPowerKw: 10, phases: 3, efficiency: 0.98, price: 2100, maxDcVoltage: 1000, startVoltage: 150, mpptRange: [260, 800], maxInputCurrent: 20, numMppts: 2 },
-  { id: 'i4', manufacturer: 'SolarEdge', model: 'SE6000H', maxPowerKw: 6, phases: 1, efficiency: 0.99, price: 1500, maxDcVoltage: 480, startVoltage: 380, mpptRange: [380, 480], maxInputCurrent: 13.5, numMppts: 1 }, // Optimizers required, simplified here
-  { id: 'i5', manufacturer: 'Sungrow', model: 'SG10RT', maxPowerKw: 10, phases: 3, efficiency: 0.985, price: 1400, maxDcVoltage: 1100, startVoltage: 180, mpptRange: [160, 1000], maxInputCurrent: 25, numMppts: 2 },
-  { id: 'i6', manufacturer: 'GoodWe', model: 'GW5000-ES-20', maxPowerKw: 5, phases: 1, efficiency: 0.976, price: 1100, maxDcVoltage: 600, startVoltage: 60, mpptRange: [60, 550], maxInputCurrent: 16, numMppts: 2 },
-  { id: 'i7', manufacturer: 'Victron', model: 'MultiPlus-II 48/5000', maxPowerKw: 4, phases: 1, efficiency: 0.95, price: 1800, maxDcVoltage: 150, startVoltage: 48, mpptRange: [48, 60], maxInputCurrent: 100, numMppts: 1 }, // Battery inv, simplified
-  { id: 'i8', manufacturer: 'Huawei', model: 'SUN2000-3KTL', maxPowerKw: 3, phases: 1, efficiency: 0.98, price: 850, maxDcVoltage: 600, startVoltage: 100, mpptRange: [90, 560], maxInputCurrent: 12.5, numMppts: 2 },
-  { id: 'i9', manufacturer: 'Huawei', model: 'SUN2000-10KTL', maxPowerKw: 10, phases: 3, efficiency: 0.986, price: 1800, maxDcVoltage: 1100, startVoltage: 200, mpptRange: [140, 980], maxInputCurrent: 13.5, numMppts: 2 },
-  { id: 'i10', manufacturer: 'Fronius', model: 'Symo 6.0', maxPowerKw: 6, phases: 3, efficiency: 0.98, price: 1600, maxDcVoltage: 1000, startVoltage: 150, mpptRange: [150, 800], maxInputCurrent: 16, numMppts: 2 },
-  { id: 'i11', manufacturer: 'SMA', model: 'Sunny Boy 3.0', maxPowerKw: 3, phases: 1, efficiency: 0.97, price: 950, maxDcVoltage: 600, startVoltage: 100, mpptRange: [110, 500], maxInputCurrent: 10, numMppts: 2 },
-  { id: 'i12', manufacturer: 'SolarEdge', model: 'SE3000H', maxPowerKw: 3, phases: 1, efficiency: 0.99, price: 1100, maxDcVoltage: 480, startVoltage: 380, mpptRange: [380, 480], maxInputCurrent: 10, numMppts: 1 },
-  { id: 'i13', manufacturer: 'GoodWe', model: 'GW10K-ET', maxPowerKw: 10, phases: 3, efficiency: 0.98, price: 2000, maxDcVoltage: 1000, startVoltage: 180, mpptRange: [200, 850], maxInputCurrent: 25, numMppts: 2 },
-  { id: 'i14', manufacturer: 'Growatt', model: 'MIN 3000TL', maxPowerKw: 3, phases: 1, efficiency: 0.97, price: 700, maxDcVoltage: 500, startVoltage: 80, mpptRange: [80, 500], maxInputCurrent: 13.5, numMppts: 2 },
-  { id: 'i15', manufacturer: 'Growatt', model: 'MOD 10KTL3', maxPowerKw: 10, phases: 3, efficiency: 0.98, price: 1300, maxDcVoltage: 1100, startVoltage: 140, mpptRange: [140, 1000], maxInputCurrent: 16, numMppts: 2 },
+  { id: 'i1', manufacturer: 'Huawei', model: 'SUN2000-5KTL', maxPowerKw: 5, phases: 3, efficiency: 0.98, price: 1200, maxDcVoltage: 1100, startVoltage: 200, mpptRange: [140, 980], maxInputCurrent: 13.5, numMppts: 2, weightKg: 17, dimensions: { width: 525, height: 470, depth: 146 } },
+  { id: 'i2', manufacturer: 'Fronius', model: 'Primo 3.0', maxPowerKw: 3, phases: 1, efficiency: 0.97, price: 900, maxDcVoltage: 1000, startVoltage: 80, mpptRange: [80, 800], maxInputCurrent: 12, numMppts: 2, weightKg: 21.5, dimensions: { width: 431, height: 645, depth: 204 } },
+  { id: 'i3', manufacturer: 'SMA', model: 'Sunny Tripower 10.0', maxPowerKw: 10, phases: 3, efficiency: 0.98, price: 2100, maxDcVoltage: 1000, startVoltage: 150, mpptRange: [260, 800], maxInputCurrent: 20, numMppts: 2, weightKg: 20.5, dimensions: { width: 460, height: 497, depth: 176 } },
+  { id: 'i4', manufacturer: 'SolarEdge', model: 'SE6000H', maxPowerKw: 6, phases: 1, efficiency: 0.99, price: 1500, maxDcVoltage: 480, startVoltage: 380, mpptRange: [380, 480], maxInputCurrent: 13.5, numMppts: 1, weightKg: 11.9, dimensions: { width: 280, height: 370, depth: 142 } }, 
+  { id: 'i5', manufacturer: 'Sungrow', model: 'SG10RT', maxPowerKw: 10, phases: 3, efficiency: 0.985, price: 1400, maxDcVoltage: 1100, startVoltage: 180, mpptRange: [160, 1000], maxInputCurrent: 25, numMppts: 2, weightKg: 18, dimensions: { width: 370, height: 480, depth: 195 } },
+  { id: 'i6', manufacturer: 'GoodWe', model: 'GW5000-ES-20', maxPowerKw: 5, phases: 1, efficiency: 0.976, price: 1100, maxDcVoltage: 600, startVoltage: 60, mpptRange: [60, 550], maxInputCurrent: 16, numMppts: 2, weightKg: 20.5, dimensions: { width: 506, height: 435, depth: 155 } },
+  { id: 'i7', manufacturer: 'Victron', model: 'MultiPlus-II 48/5000', maxPowerKw: 4, phases: 1, efficiency: 0.95, price: 1800, maxDcVoltage: 150, startVoltage: 48, mpptRange: [48, 60], maxInputCurrent: 100, numMppts: 1, weightKg: 30, dimensions: { width: 323, height: 565, depth: 148 } },
+  { id: 'i8', manufacturer: 'Huawei', model: 'SUN2000-3KTL', maxPowerKw: 3, phases: 1, efficiency: 0.98, price: 850, maxDcVoltage: 600, startVoltage: 100, mpptRange: [90, 560], maxInputCurrent: 12.5, numMppts: 2, weightKg: 12, dimensions: { width: 365, height: 365, depth: 156 } },
+  { id: 'i9', manufacturer: 'Huawei', model: 'SUN2000-10KTL', maxPowerKw: 10, phases: 3, efficiency: 0.986, price: 1800, maxDcVoltage: 1100, startVoltage: 200, mpptRange: [140, 980], maxInputCurrent: 13.5, numMppts: 2, weightKg: 17, dimensions: { width: 525, height: 470, depth: 146 } },
+  { id: 'i10', manufacturer: 'Fronius', model: 'Symo 6.0', maxPowerKw: 6, phases: 3, efficiency: 0.98, price: 1600, maxDcVoltage: 1000, startVoltage: 150, mpptRange: [150, 800], maxInputCurrent: 16, numMppts: 2, weightKg: 19.9, dimensions: { width: 431, height: 645, depth: 204 } },
+  { id: 'i11', manufacturer: 'SMA', model: 'Sunny Boy 3.0', maxPowerKw: 3, phases: 1, efficiency: 0.97, price: 950, maxDcVoltage: 600, startVoltage: 100, mpptRange: [110, 500], maxInputCurrent: 10, numMppts: 2, weightKg: 17.5, dimensions: { width: 435, height: 470, depth: 176 } },
+  { id: 'i12', manufacturer: 'SolarEdge', model: 'SE3000H', maxPowerKw: 3, phases: 1, efficiency: 0.99, price: 1100, maxDcVoltage: 480, startVoltage: 380, mpptRange: [380, 480], maxInputCurrent: 10, numMppts: 1, weightKg: 10, dimensions: { width: 280, height: 370, depth: 142 } },
+  { id: 'i13', manufacturer: 'GoodWe', model: 'GW10K-ET', maxPowerKw: 10, phases: 3, efficiency: 0.98, price: 2000, maxDcVoltage: 1000, startVoltage: 180, mpptRange: [200, 850], maxInputCurrent: 25, numMppts: 2, weightKg: 24, dimensions: { width: 516, height: 415, depth: 180 } },
+  { id: 'i14', manufacturer: 'Growatt', model: 'MIN 3000TL', maxPowerKw: 3, phases: 1, efficiency: 0.97, price: 700, maxDcVoltage: 500, startVoltage: 80, mpptRange: [80, 500], maxInputCurrent: 13.5, numMppts: 2, weightKg: 6, dimensions: { width: 375, height: 350, depth: 125 } },
+  { id: 'i15', manufacturer: 'Growatt', model: 'MOD 10KTL3', maxPowerKw: 10, phases: 3, efficiency: 0.98, price: 1300, maxDcVoltage: 1100, startVoltage: 140, mpptRange: [140, 1000], maxInputCurrent: 16, numMppts: 2, weightKg: 13.5, dimensions: { width: 425, height: 387, depth: 178 } },
   // Commercial
-  { id: 'i16', manufacturer: 'Huawei', model: 'SUN2000-15KTL', maxPowerKw: 15, phases: 3, efficiency: 0.986, price: 2200, maxDcVoltage: 1100, startVoltage: 200, mpptRange: [200, 950], maxInputCurrent: 22, numMppts: 2 },
-  { id: 'i17', manufacturer: 'Huawei', model: 'SUN2000-20KTL', maxPowerKw: 20, phases: 3, efficiency: 0.986, price: 2600, maxDcVoltage: 1100, startVoltage: 200, mpptRange: [200, 950], maxInputCurrent: 22, numMppts: 2 },
-  { id: 'i18', manufacturer: 'Huawei', model: 'SUN2000-30KTL', maxPowerKw: 30, phases: 3, efficiency: 0.987, price: 3200, maxDcVoltage: 1100, startVoltage: 200, mpptRange: [200, 1000], maxInputCurrent: 26, numMppts: 4 },
-  { id: 'i19', manufacturer: 'Huawei', model: 'SUN2000-100KTL', maxPowerKw: 100, phases: 3, efficiency: 0.988, price: 6500, maxDcVoltage: 1100, startVoltage: 200, mpptRange: [200, 1000], maxInputCurrent: 26, numMppts: 10 },
-  { id: 'i20', manufacturer: 'SMA', model: 'Sunny Tripower 15000TL', maxPowerKw: 15, phases: 3, efficiency: 0.98, price: 2800, maxDcVoltage: 1000, startVoltage: 150, mpptRange: [240, 800], maxInputCurrent: 33, numMppts: 2 },
-  { id: 'i21', manufacturer: 'SMA', model: 'Sunny Tripower 20000TL', maxPowerKw: 20, phases: 3, efficiency: 0.98, price: 3300, maxDcVoltage: 1000, startVoltage: 150, mpptRange: [240, 800], maxInputCurrent: 33, numMppts: 2 },
-  { id: 'i22', manufacturer: 'SMA', model: 'Sunny Tripower CORE1', maxPowerKw: 50, phases: 3, efficiency: 0.981, price: 4500, maxDcVoltage: 1000, startVoltage: 150, mpptRange: [500, 800], maxInputCurrent: 120, numMppts: 6 },
-  { id: 'i23', manufacturer: 'Sungrow', model: 'SG15RT', maxPowerKw: 15, phases: 3, efficiency: 0.985, price: 1900, maxDcVoltage: 1100, startVoltage: 180, mpptRange: [160, 1000], maxInputCurrent: 25, numMppts: 2 },
-  { id: 'i24', manufacturer: 'Sungrow', model: 'SG20RT', maxPowerKw: 20, phases: 3, efficiency: 0.985, price: 2200, maxDcVoltage: 1100, startVoltage: 180, mpptRange: [160, 1000], maxInputCurrent: 25, numMppts: 2 },
-  { id: 'i25', manufacturer: 'Sungrow', model: 'SG33CX', maxPowerKw: 33, phases: 3, efficiency: 0.987, price: 3000, maxDcVoltage: 1100, startVoltage: 200, mpptRange: [200, 1000], maxInputCurrent: 40, numMppts: 3 },
-  { id: 'i26', manufacturer: 'Sungrow', model: 'SG50CX', maxPowerKw: 50, phases: 3, efficiency: 0.987, price: 4000, maxDcVoltage: 1100, startVoltage: 200, mpptRange: [200, 1000], maxInputCurrent: 40, numMppts: 5 },
-  { id: 'i27', manufacturer: 'Sungrow', model: 'SG110CX', maxPowerKw: 110, phases: 3, efficiency: 0.987, price: 7000, maxDcVoltage: 1100, startVoltage: 200, mpptRange: [200, 1000], maxInputCurrent: 26, numMppts: 9 },
-  { id: 'i28', manufacturer: 'Fronius', model: 'Symo 15.0', maxPowerKw: 15, phases: 3, efficiency: 0.98, price: 3100, maxDcVoltage: 1000, startVoltage: 200, mpptRange: [200, 800], maxInputCurrent: 33, numMppts: 2 },
-  { id: 'i29', manufacturer: 'Fronius', model: 'Symo 20.0', maxPowerKw: 20, phases: 3, efficiency: 0.98, price: 3600, maxDcVoltage: 1000, startVoltage: 200, mpptRange: [200, 800], maxInputCurrent: 33, numMppts: 2 },
-  { id: 'i30', manufacturer: 'Fronius', model: 'Eco 27.0', maxPowerKw: 27, phases: 3, efficiency: 0.98, price: 4200, maxDcVoltage: 1000, startVoltage: 580, mpptRange: [580, 850], maxInputCurrent: 44, numMppts: 1 }
+  { id: 'i16', manufacturer: 'Huawei', model: 'SUN2000-15KTL', maxPowerKw: 15, phases: 3, efficiency: 0.986, price: 2200, maxDcVoltage: 1100, startVoltage: 200, mpptRange: [200, 950], maxInputCurrent: 22, numMppts: 2, weightKg: 25, dimensions: { width: 525, height: 470, depth: 262 } },
+  { id: 'i17', manufacturer: 'Huawei', model: 'SUN2000-20KTL', maxPowerKw: 20, phases: 3, efficiency: 0.986, price: 2600, maxDcVoltage: 1100, startVoltage: 200, mpptRange: [200, 950], maxInputCurrent: 22, numMppts: 2, weightKg: 25, dimensions: { width: 525, height: 470, depth: 262 } },
+  { id: 'i18', manufacturer: 'Huawei', model: 'SUN2000-30KTL', maxPowerKw: 30, phases: 3, efficiency: 0.987, price: 3200, maxDcVoltage: 1100, startVoltage: 200, mpptRange: [200, 1000], maxInputCurrent: 26, numMppts: 4, weightKg: 43, dimensions: { width: 640, height: 530, depth: 270 } },
+  { id: 'i19', manufacturer: 'Huawei', model: 'SUN2000-100KTL', maxPowerKw: 100, phases: 3, efficiency: 0.988, price: 6500, maxDcVoltage: 1100, startVoltage: 200, mpptRange: [200, 1000], maxInputCurrent: 26, numMppts: 10, weightKg: 90, dimensions: { width: 1035, height: 700, depth: 365 } },
+  { id: 'i20', manufacturer: 'SMA', model: 'Sunny Tripower 15000TL', maxPowerKw: 15, phases: 3, efficiency: 0.98, price: 2800, maxDcVoltage: 1000, startVoltage: 150, mpptRange: [240, 800], maxInputCurrent: 33, numMppts: 2, weightKg: 61, dimensions: { width: 661, height: 682, depth: 264 } },
+  { id: 'i21', manufacturer: 'SMA', model: 'Sunny Tripower 20000TL', maxPowerKw: 20, phases: 3, efficiency: 0.98, price: 3300, maxDcVoltage: 1000, startVoltage: 150, mpptRange: [240, 800], maxInputCurrent: 33, numMppts: 2, weightKg: 61, dimensions: { width: 661, height: 682, depth: 264 } },
+  { id: 'i22', manufacturer: 'SMA', model: 'Sunny Tripower CORE1', maxPowerKw: 50, phases: 3, efficiency: 0.981, price: 4500, maxDcVoltage: 1000, startVoltage: 150, mpptRange: [500, 800], maxInputCurrent: 120, numMppts: 6, weightKg: 84, dimensions: { width: 621, height: 733, depth: 569 } },
+  { id: 'i23', manufacturer: 'Sungrow', model: 'SG15RT', maxPowerKw: 15, phases: 3, efficiency: 0.985, price: 1900, maxDcVoltage: 1100, startVoltage: 180, mpptRange: [160, 1000], maxInputCurrent: 25, numMppts: 2, weightKg: 21, dimensions: { width: 370, height: 480, depth: 195 } },
+  { id: 'i24', manufacturer: 'Sungrow', model: 'SG20RT', maxPowerKw: 20, phases: 3, efficiency: 0.985, price: 2200, maxDcVoltage: 1100, startVoltage: 180, mpptRange: [160, 1000], maxInputCurrent: 25, numMppts: 2, weightKg: 21, dimensions: { width: 370, height: 480, depth: 195 } },
+  { id: 'i25', manufacturer: 'Sungrow', model: 'SG33CX', maxPowerKw: 33, phases: 3, efficiency: 0.987, price: 3000, maxDcVoltage: 1100, startVoltage: 200, mpptRange: [200, 1000], maxInputCurrent: 40, numMppts: 3, weightKg: 58, dimensions: { width: 702, height: 595, depth: 310 } },
+  { id: 'i26', manufacturer: 'Sungrow', model: 'SG50CX', maxPowerKw: 50, phases: 3, efficiency: 0.987, price: 4000, maxDcVoltage: 1100, startVoltage: 200, mpptRange: [200, 1000], maxInputCurrent: 40, numMppts: 5, weightKg: 62, dimensions: { width: 782, height: 645, depth: 310 } },
+  { id: 'i27', manufacturer: 'Sungrow', model: 'SG110CX', maxPowerKw: 110, phases: 3, efficiency: 0.987, price: 7000, maxDcVoltage: 1100, startVoltage: 200, mpptRange: [200, 1000], maxInputCurrent: 26, numMppts: 9, weightKg: 85, dimensions: { width: 1051, height: 660, depth: 363 } },
+  { id: 'i28', manufacturer: 'Fronius', model: 'Symo 15.0', maxPowerKw: 15, phases: 3, efficiency: 0.98, price: 3100, maxDcVoltage: 1000, startVoltage: 200, mpptRange: [200, 800], maxInputCurrent: 33, numMppts: 2, weightKg: 43.4, dimensions: { width: 510, height: 725, depth: 225 } },
+  { id: 'i29', manufacturer: 'Fronius', model: 'Symo 20.0', maxPowerKw: 20, phases: 3, efficiency: 0.98, price: 3600, maxDcVoltage: 1000, startVoltage: 200, mpptRange: [200, 800], maxInputCurrent: 33, numMppts: 2, weightKg: 43.4, dimensions: { width: 510, height: 725, depth: 225 } },
+  { id: 'i30', manufacturer: 'Fronius', model: 'Eco 27.0', maxPowerKw: 27, phases: 3, efficiency: 0.98, price: 4200, maxDcVoltage: 1000, startVoltage: 580, mpptRange: [580, 850], maxInputCurrent: 44, numMppts: 1, weightKg: 47.5, dimensions: { width: 510, height: 725, depth: 225 } }
 ];
 
 export const BATTERIES_DB: Battery[] = [
-  { id: 'b1', manufacturer: 'Huawei', model: 'LUNA2000-5', capacityKwh: 5, maxDischargeKw: 2.5, efficiency: 0.95, price: 3000 },
-  { id: 'b2', manufacturer: 'Tesla', model: 'Powerwall 2', capacityKwh: 13.5, maxDischargeKw: 5, efficiency: 0.90, price: 7500 },
-  { id: 'b3', manufacturer: 'BYD', model: 'Battery-Box Premium HVS', capacityKwh: 7.7, maxDischargeKw: 7, efficiency: 0.96, price: 4200 },
-  { id: 'b4', manufacturer: 'LG Chem', model: 'RESU 10H Prime', capacityKwh: 9.6, maxDischargeKw: 5, efficiency: 0.95, price: 5500 },
-  { id: 'b5', manufacturer: 'Pylontech', model: 'US5000', capacityKwh: 4.8, maxDischargeKw: 2.4, efficiency: 0.95, price: 1600 },
-  { id: 'b6', manufacturer: 'Sungrow', model: 'SBR096', capacityKwh: 9.6, maxDischargeKw: 5.7, efficiency: 0.96, price: 4800 },
-  { id: 'b7', manufacturer: 'LG Chem', model: 'RESU 16H Prime', capacityKwh: 16, maxDischargeKw: 7, efficiency: 0.95, price: 8000 },
-  { id: 'b8', manufacturer: 'BYD', model: 'Battery-Box Premium HVM', capacityKwh: 11.0, maxDischargeKw: 10, efficiency: 0.96, price: 5500 },
-  { id: 'b9', manufacturer: 'Pylontech', model: 'US3000C', capacityKwh: 3.5, maxDischargeKw: 1.5, efficiency: 0.95, price: 1200 },
-  { id: 'b10', manufacturer: 'FoxESS', model: 'ECS2900', capacityKwh: 2.8, maxDischargeKw: 1.4, efficiency: 0.95, price: 1100 }
+  { id: 'b1', manufacturer: 'Huawei', model: 'LUNA2000-5', capacityKwh: 5, maxDischargeKw: 2.5, efficiency: 0.95, price: 3000, nominalVoltage: 450, weightKg: 50, dimensions: { width: 670, height: 150, depth: 600 } },
+  { id: 'b2', manufacturer: 'Tesla', model: 'Powerwall 2', capacityKwh: 13.5, maxDischargeKw: 5, efficiency: 0.90, price: 7500, nominalVoltage: 48, weightKg: 114, dimensions: { width: 753, height: 1150, depth: 147 } },
+  { id: 'b3', manufacturer: 'BYD', model: 'Battery-Box Premium HVS', capacityKwh: 7.7, maxDischargeKw: 7, efficiency: 0.96, price: 4200, nominalVoltage: 300, weightKg: 91, dimensions: { width: 585, height: 995, depth: 298 } },
+  { id: 'b4', manufacturer: 'LG Chem', model: 'RESU 10H Prime', capacityKwh: 9.6, maxDischargeKw: 5, efficiency: 0.95, price: 5500, nominalVoltage: 400, weightKg: 111, dimensions: { width: 504, height: 817, depth: 295 } },
+  { id: 'b5', manufacturer: 'Pylontech', model: 'US5000', capacityKwh: 4.8, maxDischargeKw: 2.4, efficiency: 0.95, price: 1600, nominalVoltage: 48, weightKg: 39, dimensions: { width: 442, height: 161, depth: 420 } },
+  { id: 'b6', manufacturer: 'Sungrow', model: 'SBR096', capacityKwh: 9.6, maxDischargeKw: 5.7, efficiency: 0.96, price: 4800, nominalVoltage: 192, weightKg: 114, dimensions: { width: 625, height: 545, depth: 330 } },
+  { id: 'b7', manufacturer: 'LG Chem', model: 'RESU 16H Prime', capacityKwh: 16, maxDischargeKw: 7, efficiency: 0.95, price: 8000, nominalVoltage: 400, weightKg: 159, dimensions: { width: 504, height: 1086, depth: 295 } },
+  { id: 'b8', manufacturer: 'BYD', model: 'Battery-Box Premium HVM', capacityKwh: 11.0, maxDischargeKw: 10, efficiency: 0.96, price: 5500, nominalVoltage: 200, weightKg: 129, dimensions: { width: 585, height: 1178, depth: 298 } },
+  { id: 'b9', manufacturer: 'Pylontech', model: 'US3000C', capacityKwh: 3.5, maxDischargeKw: 1.5, efficiency: 0.95, price: 1200, nominalVoltage: 48, weightKg: 32, dimensions: { width: 442, height: 132, depth: 420 } },
+  { id: 'b10', manufacturer: 'FoxESS', model: 'ECS2900', capacityKwh: 2.8, maxDischargeKw: 1.4, efficiency: 0.95, price: 1100, nominalVoltage: 52, weightKg: 33, dimensions: { width: 570, height: 120, depth: 380 } }
 ];
 
 export const MONTH_NAMES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
 export const STANDARD_LOAD_PROFILES = [
-  { id: 'res_t1', name: 'Residencial Pequeno (T1)', baseKw: 0.2, peakKw: 3.0, annualKwh: 2500 },
-  { id: 'res_t3', name: 'Residencial Médio (T3)', baseKw: 0.4, peakKw: 5.5, annualKwh: 4500 },
-  { id: 'res_villa', name: 'Moradia Grande', baseKw: 0.8, peakKw: 9.0, annualKwh: 8500 },
-  { id: 'com_small', name: 'Escritório Pequeno', baseKw: 1.5, peakKw: 6.0, annualKwh: 12000 },
-  { id: 'ind_small', name: 'Pequena Indústria', baseKw: 5.0, peakKw: 20.0, annualKwh: 45000 },
+  { id: 'res_t1', name: 'Residencial Pequeno (T1)', baseKw: 0.2, peakKw: 3.0, annualKwh: 2500, behavior: 'domestic' },
+  { id: 'res_t3', name: 'Residencial Médio (T3)', baseKw: 0.4, peakKw: 5.5, annualKwh: 4500, behavior: 'domestic' },
+  { id: 'res_villa', name: 'Moradia Grande', baseKw: 0.8, peakKw: 9.0, annualKwh: 8500, behavior: 'domestic' },
+  { id: 'com_small', name: 'Escritório Pequeno', baseKw: 1.5, peakKw: 6.0, annualKwh: 12000, behavior: 'office' },
+  { id: 'ind_small', name: 'Pequena Indústria', baseKw: 5.0, peakKw: 20.0, annualKwh: 45000, behavior: 'industrial' },
+  { id: 'school', name: 'Escola', baseKw: 2.0, peakKw: 25.0, annualKwh: 35000, behavior: 'school' },
+  { id: 'hospital', name: 'Hospital / Clínica', baseKw: 20.0, peakKw: 50.0, annualKwh: 150000, behavior: 'hospital' },
+  { id: 'mall', name: 'Centro Comercial', baseKw: 50.0, peakKw: 200.0, annualKwh: 500000, behavior: 'mall' },
+  { id: 'store', name: 'Loja de Rua', baseKw: 1.0, peakKw: 5.0, annualKwh: 10000, behavior: 'office' },
+  { id: 'gym', name: 'Pavilhão Desportivo', baseKw: 2.0, peakKw: 15.0, annualKwh: 25000, behavior: 'evening' },
+  { id: 'court', name: 'Tribunal / Serviços', baseKw: 5.0, peakKw: 30.0, annualKwh: 40000, behavior: 'office' },
 ];
 
 // Database for detailed budgeting

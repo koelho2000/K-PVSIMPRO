@@ -10,6 +10,13 @@ export interface Equipment {
   manufacturer: string;
   model: string;
   price: number;
+  // Physical Specs
+  weightKg?: number;
+  dimensions?: {
+      width: number;
+      height: number;
+      depth: number;
+  };
 }
 
 export interface SolarPanel extends Equipment {
@@ -23,6 +30,7 @@ export interface SolarPanel extends Equipment {
   vmp: number; // Voltage at Max Power (V)
   imp: number; // Current at Max Power (A)
   tempCoeffVoc: number; // %/°C (e.g., -0.29)
+  depthMm?: number; // New
 }
 
 export interface Inverter extends Equipment {
@@ -41,6 +49,7 @@ export interface Battery extends Equipment {
   capacityKwh: number;
   maxDischargeKw: number;
   efficiency: number;
+  nominalVoltage?: number; // V
 }
 
 export interface LoadProfile {

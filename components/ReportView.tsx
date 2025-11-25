@@ -1,11 +1,10 @@
-
-
 import React, { useMemo } from 'react';
 import { ProjectState } from '../types';
 import { PANELS_DB, INVERTERS_DB, BATTERIES_DB, APP_VERSION, MONTH_NAMES } from '../constants';
 import { calculateStringing } from '../services/electricalService';
 import { calculateDetailedBudget } from '../services/pricing';
 import { calculateFinancials } from '../services/financialService';
+import { Logo } from './Logo';
 import { 
   MapPin, User, AlertTriangle, Zap, BarChart3, Sun, Battery, 
   TrendingUp, FileText, Printer, ShieldCheck
@@ -92,7 +91,7 @@ const ReportPage = ({ title, number, icon: Icon, children, analysisText }: any) 
                     <h2 className="text-2xl font-bold text-slate-800 uppercase tracking-wide">{title}</h2>
                 </div>
                 <div className="flex items-center gap-4">
-                     <img src="logo.png" alt="Logo" className="h-8 w-auto opacity-50 grayscale" onError={(e) => e.currentTarget.style.display = 'none'} />
+                     <Logo className="h-8 w-auto opacity-50 grayscale text-slate-500" />
                      <div className="text-slate-300">
                         <Icon size={32} />
                      </div>
@@ -244,7 +243,7 @@ export const ReportView: React.FC<ReportViewProps> = ({ project }) => {
             <div className="absolute -right-20 -top-20 w-96 h-96 bg-blue-50 rounded-full opacity-50 blur-3xl"></div>
             
             <div className="absolute top-12 right-12 z-20">
-                <img src="logo.png" alt="Logo" className="h-24 w-auto object-contain" onError={(e) => e.currentTarget.style.display = 'none'} />
+                <Logo className="h-16 w-auto text-blue-600" />
             </div>
 
             <div className="mt-32 relative z-10">

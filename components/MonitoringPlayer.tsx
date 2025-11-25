@@ -189,7 +189,7 @@ export const MonitoringPlayer: React.FC<MonitoringPlayerProps> = ({ project }) =
                      >
                         {isPlaying ? <Pause fill="currentColor" /> : <Play fill="currentColor" />}
                      </button>
-                     <button onClick={() => setIsPlaying(false) || setCurrentHour(0)} className="p-2 hover:bg-slate-800 rounded-full"><Square fill="currentColor" size={16}/></button>
+                     <button onClick={() => { setIsPlaying(false); setCurrentHour(0); }} className="p-2 hover:bg-slate-800 rounded-full"><Square fill="currentColor" size={16}/></button>
                      <button onClick={() => setCurrentHour(Math.min(8759, currentHour + 1))} className="p-2 hover:bg-slate-800 rounded-full"><FastForward /></button>
                 </div>
             </div>
