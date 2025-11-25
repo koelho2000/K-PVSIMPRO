@@ -1,0 +1,7 @@
+{
+  "name": "K-PVPROSIM",
+  "description": "Simulador profissional de sistemas fotovoltaicos com análise financeira, design de cobertura e integração de IA para dados climáticos.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
