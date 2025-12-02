@@ -65,6 +65,17 @@ const generateSimulationText = (sim: any) => {
     O sistema garante uma autonomia energética de ${(sim.autonomyRatio * 100).toFixed(1)}%, reduzindo significativamente a dependência da rede elétrica pública.`;
 };
 
+const generateEnergySourcesText = (breakdown: any) => {
+    const total = breakdown.total || 1;
+    const directPct = ((breakdown.direct / total) * 100).toFixed(1);
+    const batPct = ((breakdown.battery / total) * 100).toFixed(1);
+    const gridPct = ((breakdown.grid / total) * 100).toFixed(1);
+
+    return `A análise das fontes de energia revela que ${directPct}% das necessidades do edifício são supridas diretamente pelo sol em tempo real. 
+    ${breakdown.battery > 0 ? `O sistema de armazenamento contribui com ${batPct}%, cobrindo consumos noturnos ou picos.` : 'Não existe armazenamento em baterias.'}
+    A rede elétrica pública fornece os restantes ${gridPct}%, garantindo o abastecimento contínuo quando a produção solar é insuficiente.`;
+};
+
 const generateBudgetText = (total: number) => {
     return `O investimento total estimado é de ${total.toLocaleString('pt-PT', {style:'currency', currency:'EUR'})} (com IVA). 
     Este valor inclui todos os componentes principais (módulos, inversor, estrutura, baterias), material elétrico diverso, mão de obra especializada para instalação, e serviços de engenharia/licenciamento necessários para a legalização da unidade de produção.`;
@@ -170,6 +181,10 @@ export const ReportView: React.FC<ReportViewProps> = ({ project }) => {
 
   // Data Prep
   const climateData = project.climateData;
+  const totalAnnualRad = climateData 
+      ? Math.round(climateData.hourlyRad.reduce((a, b) => a + b, 0) / 1000) 
+      : 0;
+
   const climateChartData = climateData ? MONTH_NAMES.map((m, i) => ({
       name: m,
       temp: parseFloat(climateData.monthlyTemp[i].toFixed(1)),
@@ -243,6 +258,34 @@ export const ReportView: React.FC<ReportViewProps> = ({ project }) => {
   })) : [];
 
   const injectionRatio = sim && sim.totalProductionKwh > 0 ? (sim.totalExportKwh / sim.totalProductionKwh) : 0;
+  
+  const selfConsumedKwh = sim ? sim.totalProductionKwh - sim.totalExportKwh : 0;
+  const selfSufficiencyKwh = sim ? sim.totalLoadKwh - sim.totalImportKwh : 0;
+
+  // -- Annual Energy Sources Data --
+  const annualSources = {
+      direct: sim?.hourlySelfConsumptionDirect?.reduce((a,b)=>a+b,0) || 0,
+      battery: sim?.hourlySelfConsumptionBattery?.reduce((a,b)=>a+b,0) || 0,
+      grid: sim?.totalImportKwh || 0,
+      total: sim?.totalLoadKwh || 0
+  };
+
+  const monthlySourcesData = sim ? MONTH_NAMES.map((m, i) => {
+      // Simplified approximation for monthly indexing
+      const start = Math.floor(i * 30.41 * 24);
+      const end = Math.floor((i+1) * 30.41 * 24);
+      
+      const sliceDirect = sim.hourlySelfConsumptionDirect?.slice(start, end).reduce((a,b)=>a+b,0) || 0;
+      const sliceBattery = sim.hourlySelfConsumptionBattery?.slice(start, end).reduce((a,b)=>a+b,0) || 0;
+      const sliceGrid = sim.hourlyGridImport?.slice(start, end).reduce((a,b)=>a+b,0) || 0;
+
+      return {
+          name: m,
+          Direct: Math.round(sliceDirect),
+          Battery: Math.round(sliceBattery),
+          Grid: Math.round(sliceGrid)
+      };
+  }) : [];
 
   const svgWidth = 600;
   const startX = 50;
@@ -434,12 +477,16 @@ export const ReportView: React.FC<ReportViewProps> = ({ project }) => {
                         <span className="font-bold text-slate-600">8</span>
                     </li>
                     <li className="flex justify-between items-center border-b border-dotted border-slate-300 pb-2">
-                        <span className="flex items-center gap-3"><FileText size={18} className="text-slate-400"/> Orçamento Detalhado</span> 
+                        <span className="flex items-center gap-3"><TrendingUp size={18} className="text-slate-400"/> Análise de Fontes de Energia</span> 
                         <span className="font-bold text-slate-600">9</span>
                     </li>
                     <li className="flex justify-between items-center border-b border-dotted border-slate-300 pb-2">
-                        <span className="flex items-center gap-3"><ShieldCheck size={18} className="text-slate-400"/> Análise Financeira</span> 
+                        <span className="flex items-center gap-3"><FileText size={18} className="text-slate-400"/> Orçamento Detalhado</span> 
                         <span className="font-bold text-slate-600">10</span>
+                    </li>
+                    <li className="flex justify-between items-center border-b border-dotted border-slate-300 pb-2">
+                        <span className="flex items-center gap-3"><ShieldCheck size={18} className="text-slate-400"/> Análise Financeira</span> 
+                        <span className="font-bold text-slate-600">11</span>
                     </li>
                 </ul>
 
@@ -472,27 +519,38 @@ export const ReportView: React.FC<ReportViewProps> = ({ project }) => {
         {/* --- PAGE 3: LOCALIZAÇÃO --- */}
         <ReportPage title="Localização e Clima" number="1" icon={MapPin} analysisText={generateLocationText(project)}>
             <div className="grid grid-cols-2 gap-8 mb-8">
-                 <div className="bg-slate-50 p-4 rounded border">
-                     <h4 className="font-bold text-sm text-slate-600 mb-2">Dados Geográficos</h4>
-                     <ul className="text-sm space-y-2">
-                         <li className="flex justify-between"><span>Concelho:</span> <span className="font-bold">{project.settings.address}</span></li>
-                         <li className="flex justify-between"><span>Latitude:</span> <span className="font-bold">{project.settings.latitude.toFixed(4)}°</span></li>
-                         <li className="flex justify-between"><span>Longitude:</span> <span className="font-bold">{project.settings.longitude.toFixed(4)}°</span></li>
-                         <li className="flex justify-between"><span>Fonte Dados:</span> <span className="font-bold">{project.settings.climateDataSource === 'epw' ? 'EPW' : 'Sintético'}</span></li>
-                     </ul>
+                 <div className="space-y-4">
+                     <div className="bg-slate-50 p-4 rounded border">
+                         <h4 className="font-bold text-sm text-slate-600 mb-2">Dados Geográficos</h4>
+                         <ul className="text-sm space-y-2">
+                             <li className="flex justify-between"><span>Concelho:</span> <span className="font-bold">{project.settings.address}</span></li>
+                             <li className="flex justify-between"><span>Latitude:</span> <span className="font-bold">{project.settings.latitude.toFixed(4)}°</span></li>
+                             <li className="flex justify-between"><span>Longitude:</span> <span className="font-bold">{project.settings.longitude.toFixed(4)}°</span></li>
+                             <li className="flex justify-between"><span>Fonte Dados:</span> <span className="font-bold">{project.settings.climateDataSource === 'epw' ? 'EPW' : 'Sintético'}</span></li>
+                         </ul>
+                     </div>
+                     {/* GHI Card */}
+                     <div className="bg-orange-50 p-4 rounded border border-orange-200">
+                         <h4 className="font-bold text-sm text-orange-800 mb-1 flex items-center gap-2"><Sun size={16}/> Produtividade Solar (GHI)</h4>
+                         <p className="text-3xl font-extrabold text-orange-600">{totalAnnualRad.toLocaleString()} <span className="text-sm font-medium text-slate-600">kWh/m²/ano</span></p>
+                     </div>
                  </div>
-                 <div className="h-48 border rounded p-2">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <ComposedChart data={climateChartData}>
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="name" interval={0} fontSize={10} />
-                            <YAxis yAxisId="left" orientation="left" stroke="#ef4444" fontSize={10} />
-                            <YAxis yAxisId="right" orientation="right" stroke="#eab308" fontSize={10} />
-                            <Legend wrapperStyle={{fontSize: '10px'}}/>
-                            <Line yAxisId="left" type="monotone" dataKey="temp" name="Temp (°C)" stroke="#ef4444" dot={false} strokeWidth={2} />
-                            <Area yAxisId="right" type="monotone" dataKey="rad" name="Radiação" fill="#fef08a" stroke="#eab308" />
-                        </ComposedChart>
-                    </ResponsiveContainer>
+                 
+                 <div className="h-full min-h-[14rem] border rounded p-2 flex flex-col">
+                    <h5 className="text-center text-xs font-bold text-slate-500 mb-2">Temperatura Média & Radiação Global</h5>
+                    <div className="flex-1">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <ComposedChart data={climateChartData}>
+                                <CartesianGrid strokeDasharray="3 3" />
+                                <XAxis dataKey="name" interval={0} fontSize={10} />
+                                <YAxis yAxisId="left" orientation="left" stroke="#ef4444" fontSize={10} label={{ value: '°C', angle: -90, position: 'insideLeft' }}/>
+                                <YAxis yAxisId="right" orientation="right" stroke="#eab308" fontSize={10} label={{ value: 'kWh/m²', angle: 90, position: 'insideRight' }}/>
+                                <Legend wrapperStyle={{fontSize: '10px'}}/>
+                                <Line yAxisId="left" type="monotone" dataKey="temp" name="Temp (°C)" stroke="#ef4444" dot={false} strokeWidth={2} />
+                                <Area yAxisId="right" type="monotone" dataKey="rad" name="Radiação (kWh/m²)" fill="#fef08a" stroke="#eab308" />
+                            </ComposedChart>
+                        </ResponsiveContainer>
+                    </div>
                  </div>
             </div>
 
@@ -760,15 +818,20 @@ export const ReportView: React.FC<ReportViewProps> = ({ project }) => {
                      </div>
                      <div className="bg-green-50 p-6 rounded-xl border border-green-200 text-center">
                          <p className="text-xs font-bold text-green-700 uppercase mb-2">Autoconsumo Direto</p>
-                         <p className="text-3xl font-extrabold text-slate-800">{(sim.selfConsumptionRatio*100).toFixed(1)} <span className="text-sm font-normal text-slate-500">%</span></p>
+                         <p className="text-3xl font-extrabold text-slate-800">
+                             {(sim.selfConsumptionRatio*100).toFixed(1)} <span className="text-sm font-normal text-slate-500">%</span>
+                         </p>
+                         <p className="text-sm font-medium text-green-800 mt-1">{Math.round(selfConsumedKwh).toLocaleString()} kWh</p>
                      </div>
                      <div className="bg-blue-50 p-6 rounded-xl border border-blue-200 text-center">
                          <p className="text-xs font-bold text-blue-700 uppercase mb-2">Autonomia (Independência)</p>
                          <p className="text-3xl font-extrabold text-slate-800">{(sim.autonomyRatio*100).toFixed(1)} <span className="text-sm font-normal text-slate-500">%</span></p>
+                         <p className="text-sm font-medium text-blue-800 mt-1">{Math.round(selfSufficiencyKwh).toLocaleString()} kWh</p>
                      </div>
                      <div className="bg-orange-50 p-6 rounded-xl border border-orange-200 text-center">
                          <p className="text-xs font-bold text-orange-700 uppercase mb-2">Injeção na Rede</p>
                          <p className="text-3xl font-extrabold text-slate-800">{(injectionRatio*100).toFixed(1)} <span className="text-sm font-normal text-slate-500">%</span></p>
+                         <p className="text-sm font-medium text-orange-800 mt-1">{Math.round(sim.totalExportKwh).toLocaleString()} kWh</p>
                      </div>
                 </div>
 
@@ -791,7 +854,69 @@ export const ReportView: React.FC<ReportViewProps> = ({ project }) => {
             ) : <div className="text-center p-20 text-slate-400 italic border rounded">Simulação não executada.</div>}
         </ReportPage>
 
-        {/* --- PAGE 9: ORÇAMENTO --- */}
+        {/* --- PAGE 9: FONTES DE ENERGIA --- */}
+        <ReportPage title="Análise de Fontes de Energia" number="5B" icon={BarChart3} analysisText={generateEnergySourcesText(annualSources)}>
+            {sim ? (
+            <div className="space-y-8">
+                {/* Annual Summary Table */}
+                <div className="bg-white rounded-lg border overflow-hidden">
+                    <div className="bg-slate-100 p-4 border-b">
+                        <h4 className="font-bold text-slate-700">Quadro Resumo de Consumo (Anual)</h4>
+                    </div>
+                    <table className="w-full text-sm text-left">
+                        <thead>
+                            <tr className="bg-gray-50 text-gray-600">
+                                <th className="p-4 font-semibold">Fonte de Energia</th>
+                                <th className="p-4 text-right font-semibold">Energia (kWh)</th>
+                                <th className="p-4 text-right font-semibold">% do Total</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y">
+                            <tr>
+                                <td className="p-4 flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-green-500"></div> Fotovoltaico Direto</td>
+                                <td className="p-4 text-right font-bold text-slate-700">{Math.round(annualSources.direct).toLocaleString()}</td>
+                                <td className="p-4 text-right text-slate-500">{((annualSources.direct / annualSources.total)*100).toFixed(1)}%</td>
+                            </tr>
+                            <tr>
+                                <td className="p-4 flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-blue-500"></div> Baterias (Descarga)</td>
+                                <td className="p-4 text-right font-bold text-slate-700">{Math.round(annualSources.battery).toLocaleString()}</td>
+                                <td className="p-4 text-right text-slate-500">{((annualSources.battery / annualSources.total)*100).toFixed(1)}%</td>
+                            </tr>
+                            <tr>
+                                <td className="p-4 flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-red-500"></div> Rede (Importação)</td>
+                                <td className="p-4 text-right font-bold text-slate-700">{Math.round(annualSources.grid).toLocaleString()}</td>
+                                <td className="p-4 text-right text-slate-500">{((annualSources.grid / annualSources.total)*100).toFixed(1)}%</td>
+                            </tr>
+                            <tr className="bg-gray-50 font-bold border-t-2 border-gray-300">
+                                <td className="p-4">TOTAL CONSUMO</td>
+                                <td className="p-4 text-right">{Math.round(annualSources.total).toLocaleString()}</td>
+                                <td className="p-4 text-right">100%</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                {/* Monthly Stacked Chart */}
+                <div className="h-96 w-full border p-6 rounded-xl bg-white shadow-sm">
+                        <h4 className="text-center font-bold text-slate-600 mb-6">Origem do Consumo Mensal (kWh)</h4>
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={monthlySourcesData}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                <XAxis dataKey="name" fontSize={12} interval={0} tickLine={false} axisLine={false} />
+                                <YAxis fontSize={12} tickLine={false} axisLine={false} />
+                                <Tooltip cursor={{fill: 'transparent'}} />
+                                <Legend wrapperStyle={{paddingTop: '20px'}} />
+                                <Bar dataKey="Direct" name="Solar Direto" stackId="a" fill="#22c55e" />
+                                <Bar dataKey="Battery" name="Bateria" stackId="a" fill="#3b82f6" />
+                                <Bar dataKey="Grid" name="Rede" stackId="a" fill="#ef4444" />
+                            </BarChart>
+                        </ResponsiveContainer>
+                </div>
+            </div>
+            ) : <div className="text-center p-20 text-slate-400 italic">Simulação não executada.</div>}
+        </ReportPage>
+
+        {/* --- PAGE 10: ORÇAMENTO --- */}
         <ReportPage title="Orçamento Detalhado" number="6" icon={FileText} analysisText={generateBudgetText(totalBudget)}>
              <table className="w-full text-sm border-collapse mb-8">
                   <thead>
@@ -841,7 +966,7 @@ export const ReportView: React.FC<ReportViewProps> = ({ project }) => {
              </div>
         </ReportPage>
 
-        {/* --- PAGE 10: FINANCEIRO --- */}
+        {/* --- PAGE 11: FINANCEIRO --- */}
         <ReportPage title="Análise Financeira" number="7" icon={ShieldCheck} analysisText={generateFinancialText(financials)}>
              
              <div className="grid grid-cols-3 gap-6 mb-8">

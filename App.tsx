@@ -16,7 +16,7 @@ import { MonitoringPlayer } from './components/MonitoringPlayer';
 import { Logo } from './components/Logo';
 import { 
   LayoutDashboard, MapPin, Sun, Layout, BatteryCharging, 
-  BarChart3, FileText, Settings, Upload, Download, Copy, RefreshCw, Calculator, Printer, CheckCircle, ArrowRight, AlertTriangle, PlusCircle, Trash2, Coins, TrendingUp, FileSpreadsheet, Zap, Info, ExternalLink, Cpu, Tv, Lightbulb, Scale, Maximize, Activity
+  BarChart3, FileText, Settings, Upload, Download, Copy, RefreshCw, Calculator, Printer, CheckCircle, ArrowRight, AlertTriangle, PlusCircle, Trash2, Coins, TrendingUp, FileSpreadsheet, Zap, Info, ExternalLink, Cpu, Tv, Lightbulb, Scale, Maximize, Activity, FileType, FileCode
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, Cell, CartesianGrid, AreaChart, Area } from 'recharts';
 
@@ -76,6 +76,7 @@ export default function App() {
   const loadImportInputRef = useRef<HTMLInputElement>(null);
   const epwImportInputRef = useRef<HTMLInputElement>(null);
   const compareInputRef = useRef<HTMLInputElement>(null);
+  const comparisonRef = useRef<HTMLDivElement>(null);
 
   // Initialize climate on mount or change if empty
   useEffect(() => {
@@ -325,6 +326,71 @@ export default function App() {
     };
     reader.readAsText(file);
     if (e.target) e.target.value = '';
+  };
+
+  const handleExportComparisonHTML = () => {
+      if (!comparisonRef.current) return;
+      const htmlContent = comparisonRef.current.innerHTML;
+      const doc = `
+        <!DOCTYPE html>
+        <html lang="pt-PT">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Comparativo de Cenários - K-PVPROSIM</title>
+            <script src="https://cdn.tailwindcss.com"></script>
+            <style>body { margin: 0; background: #f3f4f6; padding: 40px; } .container { max-width: 1200px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }</style>
+        </head>
+        <body>
+            <div class="container">
+                <h1 class="text-2xl font-bold mb-6 text-slate-800">Comparativo de Cenários</h1>
+                ${htmlContent}
+            </div>
+        </body>
+        </html>
+      `;
+      const blob = new Blob([doc], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Comparativo_${project.settings.name.replace(/\s+/g, '_')}.html`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+  };
+
+  const handleExportComparisonWord = () => {
+      if (!comparisonRef.current) return;
+      const htmlContent = comparisonRef.current.innerHTML;
+      const doc = `
+        <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+        <head>
+            <meta charset="utf-8">
+            <title>Comparativo</title>
+            <style>
+                body { font-family: 'Arial', sans-serif; }
+                table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+                th, td { border: 1px solid #cbd5e1; padding: 8px; text-align: left; font-size: 10pt; }
+                th { background-color: #f1f5f9; color: #334155; font-weight: bold; }
+                .text-green-700 { color: #15803d; }
+                .text-red-700 { color: #b91c1c; }
+                .font-bold { font-weight: bold; }
+            </style>
+        </head>
+        <body>
+            <h2>Comparativo de Cenários</h2>
+            ${htmlContent}
+        </body>
+        </html>
+      `;
+      const blob = new Blob([doc], { type: 'application/msword' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Comparativo_${project.settings.name.replace(/\s+/g, '_')}.doc`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
   };
 
   const suggestInverter = () => {
@@ -629,6 +695,8 @@ export default function App() {
   const renderResults = () => {
     const sim = project.simulationResult;
     const injectionPct = sim && sim.totalProductionKwh > 0 ? (sim.totalExportKwh / sim.totalProductionKwh) * 100 : 0;
+    const selfConsumptionKwh = sim ? sim.totalProductionKwh - sim.totalExportKwh : 0;
+
     return (
         <div className="space-y-6">
             <div className="flex justify-between items-center">
@@ -649,7 +717,7 @@ export default function App() {
                 <>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         <KPICard label="Produção Total" value={`${Math.round(project.simulationResult.totalProductionKwh)} kWh`} color="text-yellow-600" />
-                        <KPICard label="Autoconsumo" value={`${(project.simulationResult.selfConsumptionRatio * 100).toFixed(1)}%`} color="text-blue-600" />
+                        <KPICard label="Autoconsumo" value={`${Math.round(selfConsumptionKwh)} kWh (${(project.simulationResult.selfConsumptionRatio * 100).toFixed(1)}%)`} color="text-blue-600" />
                         <KPICard label="Injeção na Rede" value={`${Math.round(project.simulationResult.totalExportKwh)} kWh (${injectionPct.toFixed(1)}%)`} color="text-green-600" />
                         <KPICard label="Autossuficiência" value={`${(project.simulationResult.autonomyRatio * 100).toFixed(1)}%`} color="text-purple-600" />
                     </div>
@@ -693,16 +761,18 @@ export default function App() {
                       <p className="text-sm text-slate-300">Analise até 5 configurações diferentes lado a lado.</p>
                   </div>
                   <div className="flex gap-2">
-                       <button onClick={() => compareInputRef.current?.click()} className="bg-blue-600 text-white px-4 py-2 rounded shadow hover:bg-blue-700 flex items-center gap-2"><Upload size={16}/> Carregar Cenário (JSON)</button>
+                       <button onClick={() => compareInputRef.current?.click()} className="bg-blue-600 text-white px-4 py-2 rounded shadow hover:bg-blue-700 flex items-center gap-2 text-sm"><Upload size={16}/> JSON</button>
                        <input ref={compareInputRef} type="file" className="hidden" accept=".json" onChange={(e) => importJson(e, true)} />
-                       <button onClick={() => window.print()} className="bg-slate-600 text-white px-4 py-2 rounded shadow hover:bg-slate-700 flex items-center gap-2"><Printer size={16}/> Imprimir</button>
+                       <button onClick={handleExportComparisonWord} className="bg-white text-blue-900 px-3 py-2 rounded shadow hover:bg-gray-100 flex items-center gap-2 text-sm font-bold"><FileType size={16}/> Word</button>
+                       <button onClick={handleExportComparisonHTML} className="bg-white text-orange-700 px-3 py-2 rounded shadow hover:bg-gray-100 flex items-center gap-2 text-sm font-bold"><FileCode size={16}/> HTML</button>
+                       <button onClick={() => window.print()} className="bg-slate-600 text-white px-4 py-2 rounded shadow hover:bg-slate-700 flex items-center gap-2 text-sm"><Printer size={16}/> Print</button>
                   </div>
               </div>
 
               {allProjects.length === 1 && <div className="p-10 text-center text-gray-400 italic border-dashed border-2 rounded print:hidden">Carregue ficheiros JSON de outros projetos para comparar.</div>}
 
               {allProjects.length > 0 && (
-                <>
+                <div ref={comparisonRef}>
                   <div className="overflow-x-auto print:overflow-visible">
                       <table className="w-full text-sm text-left border-collapse bg-white shadow rounded-lg overflow-hidden print:shadow-none print:border">
                           <thead className="bg-slate-100 text-slate-600 uppercase text-xs print:bg-slate-200">
@@ -832,7 +902,7 @@ export default function App() {
                       </div>
 
                   </div>
-                </>
+                </div>
               )}
           </div>
       );
