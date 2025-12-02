@@ -2,7 +2,8 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { RoofSegment, SolarPanel, Point } from '../types';
 import { PANELS_DB } from '../constants';
-import { Square, Hexagon, MousePointer2, Info, ZoomIn, ZoomOut, Move, RotateCcw } from 'lucide-react';
+import { calculateRecommendedSpacing } from '../services/solarService';
+import { Square, Hexagon, MousePointer2, Info, ZoomIn, ZoomOut, Move, RotateCcw, Sun } from 'lucide-react';
 
 interface RoofDesignerProps {
   roofSegments: RoofSegment[];
@@ -517,6 +518,17 @@ export const RoofDesigner: React.FC<RoofDesignerProps> = ({ roofSegments, onChan
   const yieldFactor = 1450; 
   const estProduction = installedKw * yieldFactor;
 
+  // Shading Logic
+  const suggestedSpacing = activeSegment ? calculateRecommendedSpacing(latitude, activeSegment.tilt, activeSegment.azimuth, panel.heightMm) : 0;
+  const applySpacing = () => {
+      if (activeSegment) {
+          updateSegment(activeSegment.id, { 
+              verticalSpacing: suggestedSpacing,
+              horizontalSpacing: activeSegment.horizontalSpacing || 0.02
+          });
+      }
+  };
+
   const getMaxPanels = (seg: RoofSegment) => {
       // (Keep existing logic or import from helper if refactored)
       // Re-implementing strictly for containment
@@ -689,6 +701,31 @@ export const RoofDesigner: React.FC<RoofDesignerProps> = ({ roofSegments, onChan
                         onChange={(e) => updateSegment(activeSegment.id, { verticalSpacing: parseFloat(e.target.value) })}
                         className="w-full border rounded p-1 text-sm" />
                     </div>
+                </div>
+
+                {/* Shading Analysis Card */}
+                <div className="bg-orange-50 p-3 rounded border border-orange-200">
+                    <h5 className="font-bold text-[10px] text-orange-900 uppercase flex items-center gap-1 mb-2"><Sun size={12}/> Análise de Sombreamento</h5>
+                    <div className="flex justify-between items-center text-xs mb-2">
+                        <span className="text-gray-600">Espaçamento Rec. (Inverno):</span>
+                        <span className="font-bold text-orange-800">{suggestedSpacing.toFixed(2)} m</span>
+                    </div>
+                    <div className="flex justify-between items-center text-[10px] text-gray-500 mb-2">
+                        <span>Fator Sombra (d/h):</span>
+                        <span>{(suggestedSpacing / (panel.heightMm/1000)).toFixed(2)}</span>
+                    </div>
+                    {(activeSegment.verticalSpacing < suggestedSpacing) ? (
+                        <button 
+                            onClick={applySpacing}
+                            className="w-full bg-orange-600 text-white text-xs font-bold py-1 px-2 rounded hover:bg-orange-700 animate-pulse"
+                        >
+                            Aplicar Sugestão
+                        </button>
+                    ) : (
+                        <div className="text-center text-[10px] text-green-700 font-bold bg-green-100 rounded py-1">
+                            Espaçamento Adequado
+                        </div>
+                    )}
                 </div>
 
                 <div className="bg-blue-50 p-2 rounded border border-blue-100">

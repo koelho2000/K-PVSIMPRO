@@ -143,6 +143,10 @@ export interface SimulationResult {
   totalLoadKwh: number;
   selfConsumptionRatio: number; // 0-1
   autonomyRatio: number; // 0-1
+  
+  // Shading
+  totalShadingLossKwh: number;
+  shadingLossPercent: number;
 }
 
 export interface ProjectState {

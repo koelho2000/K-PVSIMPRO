@@ -13,10 +13,11 @@ import { RoofDesigner } from './components/RoofDesigner';
 import { ElectricalScheme } from './components/ElectricalScheme';
 import { ReportView } from './components/ReportView';
 import { MonitoringPlayer } from './components/MonitoringPlayer';
+import { OptimizationAnalysis } from './components/OptimizationAnalysis';
 import { Logo } from './components/Logo';
 import { 
   LayoutDashboard, MapPin, Sun, Layout, BatteryCharging, 
-  BarChart3, FileText, Settings, Upload, Download, Copy, RefreshCw, Calculator, Printer, CheckCircle, ArrowRight, AlertTriangle, PlusCircle, Trash2, Coins, TrendingUp, FileSpreadsheet, Zap, Info, ExternalLink, Cpu, Tv, Lightbulb, Scale, Maximize, Activity, FileType, FileCode
+  BarChart3, FileText, Settings, Upload, Download, Copy, RefreshCw, Calculator, Printer, CheckCircle, ArrowRight, AlertTriangle, PlusCircle, Trash2, Coins, TrendingUp, FileSpreadsheet, Zap, Info, ExternalLink, Cpu, Tv, Lightbulb, Scale, Maximize, Activity, FileType, FileCode, Compass
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, Cell, CartesianGrid, AreaChart, Area } from 'recharts';
 
@@ -450,16 +451,21 @@ export default function App() {
           <div className="flex items-center gap-3 mb-2 text-blue-600"><Sun /> <h3 className="font-bold text-gray-800">3. Equipamento</h3></div>
           <p className="text-sm text-gray-500">Selecione Inversores, Baterias e Cablagem.</p>
         </div>
+        {/* NEW OPTIMIZATION CARD */}
+        <div className="bg-white p-6 rounded-lg shadow border border-gray-100 hover:shadow-md transition cursor-pointer" onClick={() => setActiveTab('optimization')}>
+          <div className="flex items-center gap-3 mb-2 text-yellow-500"><Compass /> <h3 className="font-bold text-gray-800">4. Análise Solar</h3></div>
+          <p className="text-sm text-gray-500">Otimização de Inclinação e Azimute.</p>
+        </div>
         <div className="bg-white p-6 rounded-lg shadow border border-gray-100 hover:shadow-md transition cursor-pointer" onClick={() => setActiveTab('roof')}>
-          <div className="flex items-center gap-3 mb-2 text-blue-600"><Layout /> <h3 className="font-bold text-gray-800">4. Cobertura</h3></div>
+          <div className="flex items-center gap-3 mb-2 text-blue-600"><Layout /> <h3 className="font-bold text-gray-800">5. Cobertura</h3></div>
           <p className="text-sm text-gray-500">Desenhe áreas, margens e layout de painéis.</p>
         </div>
         <div className="bg-white p-6 rounded-lg shadow border border-gray-100 hover:shadow-md transition cursor-pointer" onClick={() => setActiveTab('electrical')}>
-          <div className="flex items-center gap-3 mb-2 text-blue-600"><Cpu /> <h3 className="font-bold text-gray-800">5. Elétrico</h3></div>
+          <div className="flex items-center gap-3 mb-2 text-blue-600"><Cpu /> <h3 className="font-bold text-gray-800">6. Elétrico</h3></div>
           <p className="text-sm text-gray-500">Verificação de strings e esquema unifilar.</p>
         </div>
         <div className="bg-white p-6 rounded-lg shadow border border-gray-100 hover:shadow-md transition cursor-pointer" onClick={handleRunSimulation}>
-          <div className="flex items-center gap-3 mb-2 text-green-600"><FileText /> <h3 className="font-bold text-gray-800">6. Simulação</h3></div>
+          <div className="flex items-center gap-3 mb-2 text-green-600"><FileText /> <h3 className="font-bold text-gray-800">7. Simulação</h3></div>
           <p className="text-sm text-gray-500">Executar cálculo 8760h.</p>
         </div>
       </div>
@@ -693,6 +699,7 @@ export default function App() {
   )};
 
   const renderResults = () => {
+    // ... (Keep existing logic)
     const sim = project.simulationResult;
     const injectionPct = sim && sim.totalProductionKwh > 0 ? (sim.totalExportKwh / sim.totalProductionKwh) * 100 : 0;
     const selfConsumptionKwh = sim ? sim.totalProductionKwh - sim.totalExportKwh : 0;
@@ -721,6 +728,13 @@ export default function App() {
                         <KPICard label="Injeção na Rede" value={`${Math.round(project.simulationResult.totalExportKwh)} kWh (${injectionPct.toFixed(1)}%)`} color="text-green-600" />
                         <KPICard label="Autossuficiência" value={`${(project.simulationResult.autonomyRatio * 100).toFixed(1)}%`} color="text-purple-600" />
                     </div>
+                    {/* Shading Loss Card */}
+                    {project.simulationResult.totalShadingLossKwh > 0 && (
+                        <div className="bg-red-50 border border-red-100 p-3 rounded flex justify-between items-center px-6">
+                            <div><p className="text-xs text-red-700 uppercase font-bold">Perdas por Sombra</p><p className="text-lg font-bold text-red-800">-{Math.round(project.simulationResult.totalShadingLossKwh)} kWh</p></div>
+                            <div className="text-right text-sm text-red-600 font-medium">Impacto: {project.simulationResult.shadingLossPercent?.toFixed(1)}%</div>
+                        </div>
+                    )}
                     <div className="bg-white p-4 rounded shadow border border-gray-100 flex justify-between items-center px-8">
                          <div><p className="text-xs text-gray-500 uppercase font-bold">Retorno Estimado</p><p className="text-2xl font-bold text-gray-800">{calculateFinancials(project).paybackPeriodYears.toFixed(1)} Anos</p></div>
                          <div><p className="text-xs text-gray-500 uppercase font-bold">Poupança 15 Anos</p><p className="text-2xl font-bold text-green-700">{calculateFinancials(project).totalSavings15YearsEur.toLocaleString('pt-PT', {style:'currency',currency:'EUR', maximumFractionDigits:0})}</p></div>
@@ -733,6 +747,7 @@ export default function App() {
   };
 
   const renderComparison = () => {
+      // ... (Keep existing logic)
       const allProjects = [project, ...comparisonProjects];
       
       const chartData = allProjects.map((p, i) => {
@@ -920,10 +935,12 @@ export default function App() {
           <NavButton active={activeTab === 'location'} onClick={() => setActiveTab('location')} icon={<MapPin size={20} />} label="1. Localização" />
           <NavButton active={activeTab === 'load'} onClick={() => setActiveTab('load')} icon={<BarChart3 size={20} />} label="2. Consumo" />
           <NavButton active={activeTab === 'system'} onClick={() => setActiveTab('system')} icon={<Settings size={20} />} label="3. Equipamento" />
-          <NavButton active={activeTab === 'roof'} onClick={() => setActiveTab('roof')} icon={<Layout size={20} />} label="4. Cobertura" />
-          <NavButton active={activeTab === 'electrical'} onClick={() => setActiveTab('electrical')} icon={<Cpu size={20} />} label="5. Elétrico" />
-          <NavButton active={activeTab === 'results'} onClick={() => setActiveTab('results')} icon={<FileText size={20} />} label="6. Simulação" warning={isDirty} />
-          <NavButton active={activeTab === 'monitor'} onClick={() => setActiveTab('monitor')} icon={<Tv size={20} />} label="7. Monitorização" />
+          {/* NEW OPTIMIZATION MENU */}
+          <NavButton active={activeTab === 'optimization'} onClick={() => setActiveTab('optimization')} icon={<Compass size={20} />} label="4. Análise Solar" />
+          <NavButton active={activeTab === 'roof'} onClick={() => setActiveTab('roof')} icon={<Layout size={20} />} label="5. Cobertura" />
+          <NavButton active={activeTab === 'electrical'} onClick={() => setActiveTab('electrical')} icon={<Cpu size={20} />} label="6. Elétrico" />
+          <NavButton active={activeTab === 'results'} onClick={() => setActiveTab('results')} icon={<FileText size={20} />} label="7. Simulação" warning={isDirty} />
+          <NavButton active={activeTab === 'monitor'} onClick={() => setActiveTab('monitor')} icon={<Tv size={20} />} label="8. Monitorização" />
           <NavButton active={activeTab === 'report'} onClick={() => setActiveTab('report')} icon={<Printer size={20} />} label="Relatório" />
           <NavButton active={activeTab === 'compare'} onClick={() => setActiveTab('compare')} icon={<Copy size={20} />} label="Comparar" />
         </nav>
@@ -980,6 +997,8 @@ export default function App() {
              <LoadCharts loadProfile={project.loadProfile} />
           </div>
         )}
+        {/* NEW OPTIMIZATION VIEW */}
+        {activeTab === 'optimization' && <OptimizationAnalysis lat={project.settings.latitude} />}
         {activeTab === 'roof' && <div className="h-full"><RoofDesigner roofSegments={project.roofSegments} onChange={(segs) => setProject({...project, roofSegments: segs})} selectedPanelId={project.systemConfig.selectedPanelId} latitude={project.settings.latitude}/></div>}
         {activeTab === 'electrical' && <ElectricalScheme project={project} onUpdateProject={setProject} />}
         {activeTab === 'system' && renderSystem()}

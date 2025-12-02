@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
-  LineChart, Line, Legend, Area, ComposedChart
+  LineChart, Line, Legend, Area, ComposedChart, AreaChart
 } from 'recharts';
 
 interface ReportViewProps {
@@ -241,6 +241,21 @@ export const ReportView: React.FC<ReportViewProps> = ({ project }) => {
           return { name: m, load: Math.round(sum) };
       });
   }, [guaranteedHourlyLoad]);
+
+  // Annual Daily Data for Report Chart
+  const annualDailyLoad = useMemo(() => {
+      const data = [];
+      for (let d = 0; d < 365; d++) {
+          let sum = 0;
+          for (let h = 0; h < 24; h++) {
+              sum += guaranteedHourlyLoad[d*24 + h] || 0;
+          }
+          // Downsample slightly for print rendering if needed, but 365 points is fine for AreaChart
+          data.push({ day: d, load: sum });
+      }
+      return data;
+  }, [guaranteedHourlyLoad]);
+
   // ----------------------------------------
 
   const simMonthlyData = sim ? sim.hourlyProduction.reduce((acc: any[], val, idx) => {
@@ -560,7 +575,7 @@ export const ReportView: React.FC<ReportViewProps> = ({ project }) => {
                         <tr>
                             <th className="p-2 text-left">Parâmetro</th>
                             {MONTH_NAMES.map(m => <th key={m} className="p-2 border-l">{m.substring(0,3)}</th>)}
-                            <th className="p-2 border-l bg-blue-50">Média</th>
+                            <th className="p-2 border-l bg-blue-100 font-bold">Média</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y">
@@ -596,16 +611,16 @@ export const ReportView: React.FC<ReportViewProps> = ({ project }) => {
                  </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-8">
-                <div className="h-64 border rounded p-4 shadow-sm">
+            <div className="grid grid-cols-2 gap-4">
+                <div className="h-48 border rounded p-4 shadow-sm">
                     <h5 className="text-center text-sm font-bold text-slate-500 mb-2">Perfil Diário Médio (kW)</h5>
                     <ResponsiveContainer width="100%" height="100%">
                         <LineChart data={dailyLoadProfile}>
                             <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                            <XAxis dataKey="hour" fontSize={12} tickLine={false} axisLine={false} />
-                            <YAxis fontSize={12} tickLine={false} axisLine={false} />
+                            <XAxis dataKey="hour" fontSize={10} tickLine={false} axisLine={false} />
+                            <YAxis fontSize={10} tickLine={false} axisLine={false} />
                             <Tooltip />
-                            <Line type="monotone" dataKey="load" stroke="#3b82f6" strokeWidth={3} dot={false} activeDot={{r: 6}} />
+                            <Line type="monotone" dataKey="load" stroke="#3b82f6" strokeWidth={3} dot={false} activeDot={{r: 4}} />
                         </LineChart>
                     </ResponsiveContainer>
                 </div>
@@ -621,6 +636,20 @@ export const ReportView: React.FC<ReportViewProps> = ({ project }) => {
                         </BarChart>
                     </ResponsiveContainer>
                 </div>
+            </div>
+
+            {/* NEW: Annual Hourly Chart (Daily) */}
+            <div className="h-48 border rounded p-4 shadow-sm mt-4">
+                <h5 className="text-center text-sm font-bold text-slate-500 mb-2">Evolução Anual do Consumo (kWh/dia)</h5>
+                <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={annualDailyLoad}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                        <XAxis dataKey="day" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(val) => val % 30 === 0 ? val : ''}/>
+                        <YAxis fontSize={10} tickLine={false} axisLine={false} />
+                        <Tooltip labelFormatter={(label) => `Dia ${label}`} />
+                        <Area type="monotone" dataKey="load" stroke="#f59e0b" fill="#fcd34d" />
+                    </AreaChart>
+                </ResponsiveContainer>
             </div>
         </ReportPage>
 
