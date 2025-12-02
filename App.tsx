@@ -245,11 +245,23 @@ export default function App() {
           const totalConsumption = hourlyData.reduce((a,b) => a+b, 0);
           const maxLoad = Math.max(...hourlyData);
           const minLoad = Math.min(...hourlyData);
+          
+          // Calculate Annual Average for Base Load
+          const avgLoad = totalConsumption / 8760;
+
           setProject(prev => ({
               ...prev,
-              loadProfile: { ...prev.loadProfile, type: 'imported', profileName: `Importado (${file.name})`, annualConsumptionKwh: Math.round(totalConsumption), peakLoadKw: maxLoad, baseLoadKw: minLoad, hourlyData: hourlyData }
+              loadProfile: { 
+                  ...prev.loadProfile, 
+                  type: 'imported', 
+                  profileName: `Importado (${file.name})`, 
+                  annualConsumptionKwh: Math.round(totalConsumption), 
+                  peakLoadKw: parseFloat(maxLoad.toFixed(2)), 
+                  baseLoadKw: parseFloat(avgLoad.toFixed(3)), // Set Base Load to Annual Average
+                  hourlyData: hourlyData 
+              }
           }));
-          alert("Dados horários importados com sucesso!");
+          alert("Dados horários importados com sucesso! Carga base atualizada com a média anual.");
       };
       reader.readAsText(file);
       if(e.target) e.target.value = '';
@@ -352,9 +364,9 @@ export default function App() {
     <div className="space-y-6">
       <div className="bg-gradient-to-r from-blue-700 to-blue-500 rounded-xl p-8 text-white shadow-lg flex items-center justify-between">
         <div>
-            <h2 className="text-3xl font-bold mb-2">Bem-vindo ao K-PVPROSIM</h2>
-            <p className="opacity-90">Simulador Fotovoltaico Profissional</p>
-            <div className="mt-4 flex gap-4 text-sm opacity-80"><span>Versão: {APP_VERSION}</span><span>•</span><span>{new Date().toLocaleDateString('pt-PT')}</span></div>
+            <h2 className="text-3xl font-bold mb-2 text-white">Bem-vindo ao K-PVPROSIM</h2>
+            <p className="opacity-90 text-blue-100">Simulador Fotovoltaico Profissional</p>
+            <div className="mt-4 flex gap-4 text-sm opacity-80 text-blue-100"><span>Versão: {APP_VERSION}</span><span>•</span><span>{new Date().toLocaleDateString('pt-PT')}</span></div>
         </div>
         <div className="hidden md:block drop-shadow-lg text-white"><Logo className="h-24 w-auto text-white" /></div>
       </div>
@@ -480,6 +492,11 @@ export default function App() {
     const isUndersized = ratio > 1.3;
     const isOversized = ratio < 0.7;
 
+    // Areas
+    const invArea = inverter?.dimensions ? (inverter.dimensions.width * inverter.dimensions.depth / 1000000) * invCount : 0;
+    const batCount = project.systemConfig.batteryCount || 1;
+    const batArea = battery?.dimensions ? (battery.dimensions.width * battery.dimensions.depth / 1000000) * batCount : 0;
+
     return (
     <div className="space-y-6 pb-20">
       <div className="flex justify-between items-start"><h3 className="text-xl font-bold text-gray-800">Equipamento e Configuração</h3></div>
@@ -523,6 +540,10 @@ export default function App() {
            <div className="text-sm text-gray-600 bg-gray-50 p-3 rounded space-y-2">
                <div className="flex justify-between"><span>Potência Máx:</span> <strong>{inverter?.maxPowerKw} kW</strong></div>
                <div className="flex justify-between"><span>Fases:</span> <strong>{inverter?.phases}</strong></div>
+               <div className="flex justify-between text-xs"><span>Dimensões:</span><span className="font-mono">{inverter?.dimensions?.width}x{inverter?.dimensions?.height}x{inverter?.dimensions?.depth} mm</span></div>
+               <div className="flex justify-between text-xs"><span>Peso Unitário:</span><strong>{inverter?.weightKg} kg</strong></div>
+               <div className="flex justify-between text-xs"><span>Área Implantação:</span><strong>{invArea.toFixed(2)} m²</strong></div>
+               
                <div className="text-xs bg-slate-100 p-2 rounded border mt-2 space-y-1">
                    <p className="flex justify-between"><span>MPPTs:</span> <strong>{inverter?.numMppts}</strong></p>
                    <p className="flex justify-between"><span>Range:</span> <strong>{inverter?.mpptRange[0]}-{inverter?.mpptRange[1]} V</strong></p>
@@ -544,7 +565,7 @@ export default function App() {
                 {BATTERIES_DB.map(b => <option key={b.id} value={b.id}>{b.manufacturer} {b.model} ({b.capacityKwh}kWh)</option>)}
                </select>
                {project.systemConfig.selectedBatteryId && (
-                   <input type="number" min="1" max="10" className="w-16 border rounded p-2" value={project.systemConfig.batteryCount || 1} onChange={(e) => setProject({...project, systemConfig: {...project.systemConfig, batteryCount: parseInt(e.target.value)}})} />
+                   <input type="number" min="1" className="w-16 border rounded p-2" value={project.systemConfig.batteryCount || 1} onChange={(e) => setProject({...project, systemConfig: {...project.systemConfig, batteryCount: parseInt(e.target.value)}})} />
                )}
            </div>
            {battery ? (
@@ -552,7 +573,9 @@ export default function App() {
                    <div className="flex justify-between"><span>Capacidade:</span> <strong>{battery.capacityKwh} kWh</strong></div>
                    <div className="flex justify-between"><span>Tecnologia:</span> <strong>LiFePO4</strong></div>
                    <div className="flex justify-between"><span>Voltagem Nom.:</span> <strong>{battery.nominalVoltage} V</strong></div>
+                   <div className="flex justify-between text-xs"><span>Dimensões:</span><span className="font-mono">{battery.dimensions?.width}x{battery.dimensions?.height}x{battery.dimensions?.depth} mm</span></div>
                    <div className="flex justify-between text-xs"><span>Peso:</span><strong>{battery.weightKg} kg</strong></div>
+                   <div className="flex justify-between text-xs"><span>Área Implantação:</span><strong>{batArea.toFixed(2)} m²</strong></div>
                    <div className="mt-2 pt-2 border-t border-gray-200">
                         <p className="text-xs font-bold text-gray-500 uppercase">Capacidade Total</p>
                         <p className="font-bold text-green-700">{(battery.capacityKwh * (project.systemConfig.batteryCount || 1)).toFixed(1)} kWh</p>
@@ -666,8 +689,8 @@ export default function App() {
           <div className="space-y-6 print:p-0 print:space-y-2">
               <div className="flex justify-between items-center bg-slate-800 p-6 rounded-lg text-white print:hidden">
                   <div>
-                      <h3 className="text-xl font-bold">Comparativo de Cenários</h3>
-                      <p className="text-sm text-slate-400">Analise até 5 configurações diferentes lado a lado.</p>
+                      <h3 className="text-xl font-bold text-white">Comparativo de Cenários</h3>
+                      <p className="text-sm text-slate-300">Analise até 5 configurações diferentes lado a lado.</p>
                   </div>
                   <div className="flex gap-2">
                        <button onClick={() => compareInputRef.current?.click()} className="bg-blue-600 text-white px-4 py-2 rounded shadow hover:bg-blue-700 flex items-center gap-2"><Upload size={16}/> Carregar Cenário (JSON)</button>

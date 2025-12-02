@@ -240,6 +240,9 @@ export const runSimulation = (project: ProjectState): SimulationResult => {
   const hourlyGridExport: number[] = [];
   const hourlyBatterySoC: number[] = [];
   const hourlySelfConsumption: number[] = [];
+  
+  const hourlySelfConsumptionDirect: number[] = [];
+  const hourlySelfConsumptionBattery: number[] = [];
 
   const batteryCapacity = battery ? (battery.capacityKwh * batteryCount) : 0;
   const batteryMaxDischarge = battery ? (battery.maxDischargeKw * batteryCount) : 0;
@@ -274,8 +277,15 @@ export const runSimulation = (project: ProjectState): SimulationResult => {
       let netEnergy = production - load;
       let gridExport = 0;
       let gridImport = 0;
+      
+      let directSelf = 0;
+      let batterySelf = 0;
 
       if (netEnergy > 0) {
+        // PV covers full load
+        directSelf = load;
+        
+        // Excess goes to Battery or Grid
         if (battery && currentBatteryKwh < batteryCapacity) {
           const toCharge = Math.min(netEnergy, batteryMaxDischarge, batteryCapacity - currentBatteryKwh);
           currentBatteryKwh += (toCharge * battery.efficiency);
@@ -283,10 +293,16 @@ export const runSimulation = (project: ProjectState): SimulationResult => {
         }
         gridExport = netEnergy;
       } else {
+        // PV not enough
+        directSelf = production;
+        
         const needed = Math.abs(netEnergy);
         if (battery && currentBatteryKwh > 0) {
+          // Discharge Battery
           const fromBattery = Math.min(needed, batteryMaxDischarge, currentBatteryKwh);
           currentBatteryKwh -= fromBattery;
+          batterySelf = fromBattery;
+          
           netEnergy += fromBattery;
         }
         if (netEnergy < 0) {
@@ -294,6 +310,12 @@ export const runSimulation = (project: ProjectState): SimulationResult => {
         }
       }
 
+      hourlySelfConsumptionDirect.push(directSelf);
+      hourlySelfConsumptionBattery.push(batterySelf);
+      
+      // Legacy self consumption total (includes whatever didn't go to grid, mostly)
+      // Standard definition: Total Self Consumed = Production - Export. 
+      // This includes Load Direct + Battery Charge.
       const selfConsumed = production - gridExport; 
       hourlySelfConsumption.push(selfConsumed > 0 ? selfConsumed : 0);
       
@@ -315,6 +337,8 @@ export const runSimulation = (project: ProjectState): SimulationResult => {
     hourlyGridExport,
     hourlyBatterySoC,
     hourlySelfConsumption,
+    hourlySelfConsumptionDirect,
+    hourlySelfConsumptionBattery,
     totalProductionKwh: totalProduction,
     totalImportKwh: totalImport,
     totalExportKwh: totalExport,

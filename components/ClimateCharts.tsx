@@ -1,6 +1,3 @@
-
-
-
 import React, { useState, useMemo } from 'react';
 import { AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, ComposedChart } from 'recharts';
 import { ClimateData } from '../types';
@@ -15,17 +12,20 @@ export const ClimateCharts: React.FC<ClimateChartsProps> = ({ data, lat }) => {
   const [viewMode, setViewMode] = useState<'monthly' | 'hourly'>('monthly');
   const [selectedDay, setSelectedDay] = useState(150); // Default to a day in June approx
 
-  if (!data) return <div className="text-gray-400 p-4">Carregue a localização para ver os dados climáticos.</div>;
-
-  const chartData = MONTH_NAMES.map((name, i) => ({
-    name,
-    temp: Math.round(data.monthlyTemp[i] * 10) / 10,
-    rad: Math.round(data.monthlyRad[i]),
-    hum: Math.round(data.monthlyHum[i])
-  }));
+  // Hooks must run unconditionally
+  const chartData = useMemo(() => {
+      if (!data) return [];
+      return MONTH_NAMES.map((name, i) => ({
+        name,
+        temp: Math.round(data.monthlyTemp[i] * 10) / 10,
+        rad: Math.round(data.monthlyRad[i]),
+        hum: Math.round(data.monthlyHum[i])
+      }));
+  }, [data]);
 
   // Annual Averages
   const averages = useMemo(() => {
+      if (!data) return { temp: '0', rad: '0', hum: '0' };
       const avgT = data.monthlyTemp.reduce((a,b)=>a+b,0) / 12;
       const avgR = data.monthlyRad.reduce((a,b)=>a+b,0) / 12;
       const avgH = data.monthlyHum.reduce((a,b)=>a+b,0) / 12;
@@ -34,7 +34,7 @@ export const ClimateCharts: React.FC<ClimateChartsProps> = ({ data, lat }) => {
 
   // Hourly Data Logic
   const hourlyChartData = useMemo(() => {
-     if (!data.hourlyTemp || data.hourlyTemp.length === 0) return [];
+     if (!data || !data.hourlyTemp || data.hourlyTemp.length === 0) return [];
      
      const startIdx = (selectedDay - 1) * 24;
      const dayData = [];
@@ -54,6 +54,9 @@ export const ClimateCharts: React.FC<ClimateChartsProps> = ({ data, lat }) => {
       const date = new Date(2023, 0, dayOfYear); // Non-leap year base
       return date.toLocaleDateString('pt-PT', { day: 'numeric', month: 'long' });
   };
+
+  // Check for data at Render time
+  if (!data) return <div className="text-gray-400 p-4">Carregue a localização para ver os dados climáticos.</div>;
 
   return (
     <div className="space-y-6">
@@ -121,17 +124,17 @@ export const ClimateCharts: React.FC<ClimateChartsProps> = ({ data, lat }) => {
                         <tr>
                             <td className="p-2 font-semibold text-left">Temp (°C)</td>
                             {chartData.map((d, i) => <td key={i} className="p-2">{d.temp}</td>)}
-                            <td className="p-2 bg-blue-50 font-bold border-l">{averages.temp}</td>
+                            <td className="p-2 bg-blue-50 font-bold">{averages.temp}</td>
                         </tr>
                         <tr>
                             <td className="p-2 font-semibold text-left">Rad (kWh/m²/dia)</td>
                             {chartData.map((d, i) => <td key={i} className="p-2">{d.rad}</td>)}
-                            <td className="p-2 bg-blue-50 font-bold border-l">{averages.rad}</td>
+                            <td className="p-2 bg-blue-50 font-bold">{averages.rad}</td>
                         </tr>
                         <tr>
                             <td className="p-2 font-semibold text-left">Humidade (%)</td>
                             {chartData.map((d, i) => <td key={i} className="p-2">{d.hum}</td>)}
-                            <td className="p-2 bg-blue-50 font-bold border-l">{averages.hum}</td>
+                            <td className="p-2 bg-blue-50 font-bold">{averages.hum}</td>
                         </tr>
                     </tbody>
                     </table>

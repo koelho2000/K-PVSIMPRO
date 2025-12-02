@@ -1,7 +1,7 @@
 
 import { SolarPanel, Inverter, Battery } from './types';
 
-export const APP_VERSION = "1.5.0-Pro";
+export const APP_VERSION = "1.6.0-Pro";
 export const AUTHOR_NAME = "By Koelho2000";
 export const AUTHOR_URL = "https://www.koelho2000.com";
 
@@ -386,7 +386,11 @@ export const BATTERIES_DB: Battery[] = [
   { id: 'b7', manufacturer: 'LG Chem', model: 'RESU 16H Prime', capacityKwh: 16, maxDischargeKw: 7, efficiency: 0.95, price: 8000, nominalVoltage: 400, weightKg: 159, dimensions: { width: 504, height: 1086, depth: 295 } },
   { id: 'b8', manufacturer: 'BYD', model: 'Battery-Box Premium HVM', capacityKwh: 11.0, maxDischargeKw: 10, efficiency: 0.96, price: 5500, nominalVoltage: 200, weightKg: 129, dimensions: { width: 585, height: 1178, depth: 298 } },
   { id: 'b9', manufacturer: 'Pylontech', model: 'US3000C', capacityKwh: 3.5, maxDischargeKw: 1.5, efficiency: 0.95, price: 1200, nominalVoltage: 48, weightKg: 32, dimensions: { width: 442, height: 132, depth: 420 } },
-  { id: 'b10', manufacturer: 'FoxESS', model: 'ECS2900', capacityKwh: 2.8, maxDischargeKw: 1.4, efficiency: 0.95, price: 1100, nominalVoltage: 52, weightKg: 33, dimensions: { width: 570, height: 120, depth: 380 } }
+  { id: 'b10', manufacturer: 'FoxESS', model: 'ECS2900', capacityKwh: 2.8, maxDischargeKw: 1.4, efficiency: 0.95, price: 1100, nominalVoltage: 52, weightKg: 33, dimensions: { width: 570, height: 120, depth: 380 } },
+  // Large Scale
+  { id: 'b11', manufacturer: 'BYD', model: 'Battery-Box Commercial', capacityKwh: 50.0, maxDischargeKw: 25, efficiency: 0.96, price: 22000, nominalVoltage: 800, weightKg: 450, dimensions: { width: 800, height: 2000, depth: 600 } },
+  { id: 'b12', manufacturer: 'Tesla', model: 'Powerpack (Industrial)', capacityKwh: 232.0, maxDischargeKw: 130, efficiency: 0.92, price: 95000, nominalVoltage: 480, weightKg: 1600, dimensions: { width: 1300, height: 2200, depth: 950 } },
+  { id: 'b13', manufacturer: 'Tesla', model: 'Powerpack XL', capacityKwh: 350.0, maxDischargeKw: 180, efficiency: 0.92, price: 140000, nominalVoltage: 480, weightKg: 2200, dimensions: { width: 1500, height: 2400, depth: 1100 } }
 ];
 
 export const MONTH_NAMES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
@@ -405,7 +409,6 @@ export const STANDARD_LOAD_PROFILES = [
   { id: 'court', name: 'Tribunal / Serviços', baseKw: 5.0, peakKw: 30.0, annualKwh: 40000, behavior: 'office' },
 ];
 
-// Database for detailed budgeting
 export const PRICING_DB = {
     cable_dc_solar_6mm: { name: 'Cabo Solar DC 6mm² (H1Z2Z2-K)', unit: 'm', price: 1.25 },
     cable_ac_3x4mm: { name: 'Cabo AC XV 3G4mm²', unit: 'm', price: 2.10 },

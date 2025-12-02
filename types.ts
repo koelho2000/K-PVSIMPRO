@@ -131,7 +131,12 @@ export interface SimulationResult {
   hourlyGridImport: number[];
   hourlyGridExport: number[];
   hourlyBatterySoC: number[];
-  hourlySelfConsumption: number[]; // New field for clearer charting
+  hourlySelfConsumption: number[]; // Total Self Consumption (PV Direct + Battery Charge typically, or just PV Direct? In code it's Prod - Export)
+  
+  // Detailed Load Coverage
+  hourlySelfConsumptionDirect: number[]; // PV -> Load
+  hourlySelfConsumptionBattery: number[]; // Battery -> Load
+
   totalProductionKwh: number;
   totalImportKwh: number;
   totalExportKwh: number;

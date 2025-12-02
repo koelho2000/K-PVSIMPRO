@@ -1,7 +1,6 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { ProjectState } from '../types';
-import { Play, Pause, Square, Rewind, FastForward, Sun, Cloud, CloudRain, Moon, Zap, Battery, BatteryCharging, Home, UtilityPole } from 'lucide-react';
+import { Play, Pause, Square, Rewind, FastForward, Sun, Cloud, CloudRain, Moon, Zap, BatteryCharging, Home, UtilityPole, Download } from 'lucide-react';
 import { MONTH_NAMES } from '../constants';
 
 interface MonitoringPlayerProps {
@@ -17,16 +16,7 @@ export const MonitoringPlayer: React.FC<MonitoringPlayerProps> = ({ project }) =
     const sim = project.simulationResult;
     const climate = project.climateData;
 
-    if (!sim || !climate) {
-        return (
-            <div className="flex flex-col items-center justify-center h-96 bg-gray-50 rounded border border-dashed text-gray-400">
-                <Zap size={48} className="mb-4 opacity-50"/>
-                <p>Execute a simulação primeiro para aceder à monitorização.</p>
-            </div>
-        );
-    }
-
-    // Timer Logic
+    // Timer Logic - Always define hooks at top level
     useEffect(() => {
         let interval: any;
         if (isPlaying) {
@@ -34,7 +24,7 @@ export const MonitoringPlayer: React.FC<MonitoringPlayerProps> = ({ project }) =
                 setCurrentHour(prev => {
                     if (prev >= 8759) {
                         setIsPlaying(false);
-                        return 8759; // STOP at end, don't reset, so user can verify totals
+                        return 8759; // STOP at end
                     }
                     return prev + 1;
                 });
@@ -43,14 +33,10 @@ export const MonitoringPlayer: React.FC<MonitoringPlayerProps> = ({ project }) =
         return () => clearInterval(interval);
     }, [isPlaying, speed]);
 
-    // Update Speed
-    const changeSpeed = (mult: number) => {
-        setSpeedMultiplier(mult);
-        setSpeed(1000 / (10 * mult)); // Base 10 hours per sec at 1x
-    };
-
-    // Calculate Cumulative Totals (Totalizers)
+    // Calculate Cumulative Totals (Totalizers) - Always run hook
     const totals = useMemo(() => {
+        if (!sim) return { totProd: 0, totLoad: 0, totImp: 0, totExp: 0, totBatChg: 0, totBatDis: 0 };
+
         let totProd = 0;
         let totLoad = 0;
         let totImp = 0;
@@ -70,9 +56,7 @@ export const MonitoringPlayer: React.FC<MonitoringPlayerProps> = ({ project }) =
             totImp += imp;
             totExp += exp;
 
-            // Battery flow derivation:
-            // Flow = Prod - Load - Export + Import
-            // If > 0: Charge, If < 0: Discharge
+            // Battery flow derivation
             const flow = p - l - exp + imp;
             if (flow > 0.001) totBatChg += flow;
             else if (flow < -0.001) totBatDis += Math.abs(flow);
@@ -80,6 +64,58 @@ export const MonitoringPlayer: React.FC<MonitoringPlayerProps> = ({ project }) =
 
         return { totProd, totLoad, totImp, totExp, totBatChg, totBatDis };
     }, [currentHour, sim]);
+
+    // --- Render Logic (Conditional Checks Here) ---
+
+    if (!sim || !climate) {
+        return (
+            <div className="flex flex-col items-center justify-center h-96 bg-gray-50 rounded border border-dashed text-gray-400">
+                <Zap size={48} className="mb-4 opacity-50"/>
+                <p>Execute a simulação primeiro para aceder à monitorização.</p>
+            </div>
+        );
+    }
+
+    // Export Function
+    const exportMonitoringData = () => {
+        const rows = [
+            ["Hora", "Dia", "Mes", "Producao_kWh", "Consumo_kWh", "Importacao_Rede", "Exportacao_Rede", "Bateria_SoC", "Autoconsumo_Direto", "Descarga_Bateria", "Temp_C", "Radiacao_W/m2"]
+        ];
+        
+        for (let i = 0; i < 8760; i++) {
+            const d = Math.floor(i / 24);
+            const date = new Date(2023, 0, d + 1);
+            rows.push([
+                i.toString(),
+                date.getDate().toString(),
+                MONTH_NAMES[date.getMonth()],
+                (sim.hourlyProduction[i] || 0).toFixed(3),
+                (sim.hourlyLoad[i] || 0).toFixed(3),
+                (sim.hourlyGridImport[i] || 0).toFixed(3),
+                (sim.hourlyGridExport[i] || 0).toFixed(3),
+                (sim.hourlyBatterySoC[i] || 0).toFixed(1),
+                (sim.hourlySelfConsumptionDirect?.[i] || 0).toFixed(3),
+                (sim.hourlySelfConsumptionBattery?.[i] || 0).toFixed(3),
+                (climate.hourlyTemp[i] || 0).toFixed(1),
+                (climate.hourlyRad[i] || 0).toFixed(0)
+            ]);
+        }
+
+        const csvContent = "data:text/csv;charset=utf-8," + rows.map(e => e.join(",")).join("\n");
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `monitorizacao_${project.settings.name.replace(/\s+/g, '_')}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
+    // Update Speed
+    const changeSpeed = (mult: number) => {
+        setSpeedMultiplier(mult);
+        setSpeed(1000 / (10 * mult)); // Base 10 hours per sec at 1x
+    };
 
     // Data at Current Hour
     const prod = sim.hourlyProduction[currentHour] || 0;
@@ -176,6 +212,10 @@ export const MonitoringPlayer: React.FC<MonitoringPlayerProps> = ({ project }) =
                 </div>
 
                 <div className="flex items-center gap-4">
+                     <button onClick={exportMonitoringData} className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded text-xs font-bold flex items-center gap-2 shadow" title="Exportar CSV Completo">
+                        <Download size={16}/> Exportar
+                     </button>
+                     <div className="h-8 w-[1px] bg-slate-700 mx-2"></div>
                      <div className="flex bg-slate-800 rounded-lg p-1">
                         <button onClick={() => changeSpeed(1)} className={`px-3 py-1 rounded text-xs font-bold ${speedMultiplier === 1 ? 'bg-blue-600' : 'hover:bg-slate-700'}`}>1x</button>
                         <button onClick={() => changeSpeed(10)} className={`px-3 py-1 rounded text-xs font-bold ${speedMultiplier === 10 ? 'bg-blue-600' : 'hover:bg-slate-700'}`}>10x</button>
