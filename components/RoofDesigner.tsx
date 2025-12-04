@@ -3,7 +3,7 @@ import React, { useRef, useEffect, useState } from 'react';
 import { RoofSegment, SolarPanel, Point } from '../types';
 import { PANELS_DB } from '../constants';
 import { calculateRecommendedSpacing } from '../services/solarService';
-import { Square, Hexagon, MousePointer2, Info, ZoomIn, ZoomOut, Move, RotateCcw, Sun } from 'lucide-react';
+import { Square, Hexagon, MousePointer2, Info, ZoomIn, ZoomOut, Move, RotateCcw, Sun, AlertTriangle } from 'lucide-react';
 
 interface RoofDesignerProps {
   roofSegments: RoofSegment[];
@@ -563,6 +563,9 @@ export const RoofDesigner: React.FC<RoofDesignerProps> = ({ roofSegments, onChan
       }
   };
 
+  // Helper var for component render
+  const maxPossiblePanels = activeSegment ? getMaxPanels(activeSegment) : 0;
+
   return (
     <div className="flex flex-col gap-6">
       {/* Top Stats */}
@@ -735,12 +738,20 @@ export const RoofDesigner: React.FC<RoofDesignerProps> = ({ roofSegments, onChan
                             onChange={(e) => updateSegment(activeSegment.id, { panelsCount: parseInt(e.target.value) })}
                             className="w-20 border rounded p-1 font-bold text-lg text-blue-700 text-center" />
                         <button 
-                            onClick={() => updateSegment(activeSegment.id, { panelsCount: getMaxPanels(activeSegment) })}
+                            onClick={() => updateSegment(activeSegment.id, { panelsCount: maxPossiblePanels })}
                             className="text-xs bg-white border shadow-sm px-3 py-2 rounded hover:bg-gray-50 font-medium">
                             Auto Preencher
                         </button>
                     </div>
-                    <p className="text-[10px] text-green-600 mt-1">Máximo Teórico: <strong>{getMaxPanels(activeSegment)}</strong></p>
+                    <p className="text-[10px] text-green-600 mt-1">Máximo Teórico: <strong>{maxPossiblePanels}</strong></p>
+                    
+                    {/* Alert if exceeded */}
+                    {activeSegment.panelsCount > maxPossiblePanels && (
+                        <div className="mt-2 text-xs text-red-600 bg-red-50 p-2 rounded border border-red-200 flex items-start gap-2">
+                            <AlertTriangle size={14} className="shrink-0 mt-0.5"/>
+                            <span className="leading-tight">Atenção: O nº de painéis excede o máximo teórico ({maxPossiblePanels}) para a área disponível.</span>
+                        </div>
+                    )}
                 </div>
             </div>
             )}
