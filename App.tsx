@@ -17,7 +17,7 @@ import { OptimizationAnalysis } from './components/OptimizationAnalysis';
 import { Logo } from './components/Logo';
 import { 
   LayoutDashboard, MapPin, Sun, Layout, BatteryCharging, 
-  BarChart3, FileText, Settings, Upload, Download, Copy, RefreshCw, Calculator, Printer, CheckCircle, ArrowRight, AlertTriangle, PlusCircle, Trash2, Coins, TrendingUp, FileSpreadsheet, Zap, Info, ExternalLink, Cpu, Tv, Lightbulb, Scale, Maximize, Activity, FileType, FileCode, Compass
+  BarChart3, FileText, Settings, Upload, Download, Copy, RefreshCw, Calculator, Printer, CheckCircle, ArrowRight, AlertTriangle, PlusCircle, Trash2, Coins, TrendingUp, FileSpreadsheet, Zap, Info, ExternalLink, Cpu, Tv, Lightbulb, Scale, Maximize, Activity, FileType, FileCode, Compass, X
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, Cell, CartesianGrid, AreaChart, Area } from 'recharts';
 
@@ -72,6 +72,15 @@ export default function App() {
   const [isDirty, setIsDirty] = useState(false); 
   const [suggestions, setSuggestions] = useState<ImprovementSuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  
+  // New State for Import Configuration
+  const [importState, setImportState] = useState<{
+      isOpen: boolean;
+      content: string;
+      filename: string;
+      startLine: number;
+      column: number;
+  }>({ isOpen: false, content: '', filename: '', startLine: 1, column: 1 });
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const loadImportInputRef = useRef<HTMLInputElement>(null);
@@ -241,32 +250,83 @@ export default function App() {
       reader.onload = (event) => {
           const text = event.target?.result as string;
           if (!text) return;
-          const values = text.split(/[\n,;]+/).map(v => parseFloat(v.trim())).filter(n => !isNaN(n));
-          if (values.length < 8760) { alert(`Erro: O ficheiro contém apenas ${values.length} valores.`); return; }
-          const hourlyData = values.slice(0, 8760);
-          const totalConsumption = hourlyData.reduce((a,b) => a+b, 0);
-          const maxLoad = Math.max(...hourlyData);
-          const minLoad = Math.min(...hourlyData);
-          
-          // Calculate Annual Average for Base Load
-          const avgLoad = totalConsumption / 8760;
-
-          setProject(prev => ({
-              ...prev,
-              loadProfile: { 
-                  ...prev.loadProfile, 
-                  type: 'imported', 
-                  profileName: `Importado (${file.name})`, 
-                  annualConsumptionKwh: Math.round(totalConsumption), 
-                  peakLoadKw: parseFloat(maxLoad.toFixed(2)), 
-                  baseLoadKw: parseFloat(avgLoad.toFixed(3)), // Set Base Load to Annual Average
-                  hourlyData: hourlyData 
-              }
-          }));
-          alert("Dados horários importados com sucesso! Carga base atualizada com a média anual.");
+          // Open Modal instead of processing immediately
+          setImportState({
+              isOpen: true,
+              content: text,
+              filename: file.name,
+              startLine: 1,
+              column: 1
+          });
       };
       reader.readAsText(file);
       if(e.target) e.target.value = '';
+  };
+
+  const processImport = () => {
+      const { content, startLine, column } = importState;
+      const lines = content.split(/\r?\n/);
+      
+      if (startLine > lines.length) {
+          alert("A linha inicial é superior ao número total de linhas do ficheiro.");
+          return;
+      }
+
+      const dataRows = lines.slice(startLine - 1);
+      const values: number[] = [];
+      
+      for (const line of dataRows) {
+          if (!line.trim()) continue; // Skip empty lines
+          
+          let separator = ',';
+          if (line.includes(';')) separator = ';';
+          else if (line.includes('\t')) separator = '\t';
+          
+          const cols = line.split(separator);
+          
+          if (cols.length >= column) {
+              const valStr = cols[column - 1];
+              const cleanVal = valStr.replace(',', '.').replace(/[^0-9.-]/g, '').trim(); 
+              const num = parseFloat(cleanVal);
+              if (!isNaN(num)) {
+                  values.push(num);
+              }
+          }
+      }
+
+      const count = values.length;
+      let finalData = values;
+
+      if (count === 8760) {
+          alert(`Sucesso: 8760 valores importados corretamente.`);
+      } else {
+          if (count > 8760) {
+               alert(`Aviso: Foram encontrados ${count} dados. O sistema irá utilizar apenas os primeiros 8760.`);
+               finalData = values.slice(0, 8760);
+          } else {
+               alert(`Aviso: Foram encontrados apenas ${count} dados. (Necessário: 8760h). \nOs dados em falta serão preenchidos com zero para permitir a simulação.`);
+               while (finalData.length < 8760) finalData.push(0);
+          }
+      }
+
+      const totalConsumption = finalData.reduce((a,b) => a+b, 0);
+      const maxLoad = Math.max(...finalData);
+      const avgLoad = totalConsumption / 8760;
+
+      setProject(prev => ({
+          ...prev,
+          loadProfile: { 
+              ...prev.loadProfile, 
+              type: 'imported', 
+              profileName: `Importado (${importState.filename})`, 
+              annualConsumptionKwh: Math.round(totalConsumption), 
+              peakLoadKw: parseFloat(maxLoad.toFixed(2)), 
+              baseLoadKw: parseFloat(avgLoad.toFixed(3)),
+              hourlyData: finalData 
+          }
+      }));
+      
+      setImportState(prev => ({ ...prev, isOpen: false }));
   };
 
   const handleEpwImport = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -988,6 +1048,23 @@ export default function App() {
                     </div>
                 </div>
 
+                {project.loadProfile.type === 'imported' && project.loadProfile.hourlyData && (
+                    <div className="mb-6 bg-green-50 border-l-4 border-green-500 p-4 rounded shadow-sm">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <h4 className="font-bold text-green-800 flex items-center gap-2"><CheckCircle size={18}/> Importação Concluída</h4>
+                                <p className="text-sm text-green-700 mt-1">
+                                    Ficheiro: <strong>{project.loadProfile.profileName?.replace('Importado (','').replace(')','')}</strong>
+                                </p>
+                            </div>
+                            <div className="text-right">
+                                <span className="text-2xl font-bold text-green-700">{project.loadProfile.hourlyData.length}</span>
+                                <p className="text-xs font-bold text-green-600 uppercase">Pontos de Dados</p>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
                     <div><label className="block text-sm font-medium mb-1">Consumo Anual (kWh)</label><input type="number" className="w-full border p-2 rounded" value={project.loadProfile.annualConsumptionKwh} onChange={(e) => handleLoadInputChange('annual', parseFloat(e.target.value))} /></div>
                     <div><label className="block text-sm font-medium mb-1">Carga Base (kW)</label><input type="number" className="w-full border p-2 rounded" value={project.loadProfile.baseLoadKw} onChange={(e) => handleLoadInputChange('base', parseFloat(e.target.value))} /></div>
@@ -1007,6 +1084,53 @@ export default function App() {
         {activeTab === 'compare' && renderComparison()}
         {activeTab === 'monitor' && <MonitoringPlayer project={project} />}
       </main>
+
+      {/* Import Config Modal */}
+      {importState.isOpen && (
+        <div className="fixed inset-0 bg-black/60 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm">
+            <div className="bg-white p-6 rounded-xl shadow-2xl w-96 max-w-full border border-gray-200">
+                <div className="flex justify-between items-center mb-6 border-b pb-2">
+                    <h3 className="font-bold text-lg text-gray-800 flex items-center gap-2"><Upload size={20} className="text-blue-600"/> Configurar Importação</h3>
+                    <button onClick={() => setImportState(s => ({...s, isOpen: false}))} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+                </div>
+                
+                <div className="bg-blue-50 p-3 rounded mb-4 text-xs text-blue-800 flex items-start gap-2">
+                    <Info size={16} className="shrink-0 mt-0.5"/>
+                    <p>Ficheiro selecionado: <strong>{importState.filename}</strong></p>
+                </div>
+                
+                <div className="space-y-5">
+                    <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-1">Linha Inicial dos Dados</label>
+                        <input 
+                            type="number" min="1" 
+                            className="w-full border border-gray-300 p-2 rounded focus:ring-2 focus:ring-blue-500 outline-none" 
+                            value={importState.startLine}
+                            onChange={e => setImportState(s => ({...s, startLine: Math.max(1, parseInt(e.target.value)||1)}))}
+                        />
+                        <p className="text-[10px] text-gray-500 mt-1">Indique a linha do primeiro valor numérico (ignorando cabeçalhos).</p>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-1">Coluna dos Dados</label>
+                        <input 
+                            type="number" min="1" 
+                            className="w-full border border-gray-300 p-2 rounded focus:ring-2 focus:ring-blue-500 outline-none" 
+                            value={importState.column}
+                            onChange={e => setImportState(s => ({...s, column: Math.max(1, parseInt(e.target.value)||1)}))}
+                        />
+                        <p className="text-[10px] text-gray-500 mt-1">Indique o nº da coluna onde estão os valores (1=A, 2=B, etc).</p>
+                    </div>
+                    
+                    <div className="pt-2">
+                        <button onClick={processImport} className="w-full bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700 shadow transition-colors flex justify-center items-center gap-2">
+                            <CheckCircle size={18}/> Confirmar e Importar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+      )}
+
     </div>
   );
 }

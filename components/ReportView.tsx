@@ -8,11 +8,11 @@ import { calculateFinancials } from '../services/financialService';
 import { Logo } from './Logo';
 import { 
   MapPin, User, AlertTriangle, Zap, BarChart3, Sun, Battery, 
-  TrendingUp, FileText, Printer, ShieldCheck, FileCode, FileType
+  TrendingUp, FileText, Printer, ShieldCheck, FileCode, FileType, Layout, Activity
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
-  LineChart, Line, Legend, Area, ComposedChart, AreaChart
+  LineChart, Line, Legend, Area, ComposedChart, AreaChart, Cell
 } from 'recharts';
 
 interface ReportViewProps {
@@ -31,6 +31,17 @@ const generateConsumptionText = (p: ProjectState) => {
     return `A instalação foi dimensionada para responder a um perfil de consumo do tipo "${p.loadProfile.profileName || 'Personalizado'}". 
     O consumo anual de referência é de ${p.loadProfile.annualConsumptionKwh.toLocaleString()} kWh, com uma potência de ponta estimada de ${p.loadProfile.peakLoadKw} kW. 
     A análise do perfil diário permite identificar os períodos de maior necessidade energética, essencial para o correto dimensionamento do binómio produção/baterias.`;
+};
+
+const generateRoofAnalysisText = (p: ProjectState, sim: any, area: number) => {
+    if (!sim) return "Dados de simulação indisponíveis.";
+    
+    const yieldKwhKwp = sim.totalProductionKwh / ((p.roofSegments.reduce((a,b)=>a+b.panelsCount,0) * (PANELS_DB.find(x=>x.id===p.systemConfig.selectedPanelId)?.powerW||0))/1000);
+    const shadingLoss = sim.shadingLossPercent || 0;
+    
+    return `A central fotovoltaica ocupa uma área total de ${area.toFixed(1)} m², distribuída por ${p.roofSegments.length} superfície(s) com diferentes orientações. 
+    A análise detalhada da geometria solar e obstáculos indica um fator de perdas por sombreamento de ${(shadingLoss).toFixed(1)}%. 
+    Nas condições simuladas, a produtividade específica (Yield) do sistema é de ${Math.round(yieldKwhKwp)} kWh/kWp, o que compara com um potencial máximo teórico de ${Math.round(yieldKwhKwp / (1-(shadingLoss/100)))} kWh/kWp caso não existissem sombras.`;
 };
 
 const generateEquipmentText = (p: ProjectState) => {
@@ -56,6 +67,19 @@ const generateElectricalText = (elec: any, inverter: any) => {
     return `A configuração elétrica valida a compatibilidade entre as strings fotovoltaicas e o inversor. 
     A tensão máxima de circuito aberto (${elec.metrics.maxStringVoltage.toFixed(0)}V @ -10°C) respeita o limite do inversor de ${inverter?.maxDcVoltage}V. 
     Foram dimensionadas as proteções contra sobrecorrentes (Fusíveis DC ${elec.protection.dcFuseA}A) e curto-circuitos na rede (Disjuntor AC ${elec.protection.acBreakerA}A), bem como as secções de cabo (${elec.cables.dcStringMm2}mm² DC / ${elec.cables.acMm2}mm² AC) para garantir a segurança e eficiência da instalação.`;
+};
+
+const generateMonitoringSchemeText = (sim: any) => {
+    if (!sim) return "Dados de simulação indisponíveis.";
+    const totalProd = Math.round(sim.totalProductionKwh);
+    const totalLoad = Math.round(sim.totalLoadKwh);
+    const selfCons = Math.round(sim.hourlySelfConsumptionDirect?.reduce((a:number,b:number)=>a+b,0)||0);
+    const battDischarge = Math.round(sim.hourlySelfConsumptionBattery?.reduce((a:number,b:number)=>a+b,0)||0);
+    
+    return `O esquema energético global ilustra o balanço de fluxos acumulados ao longo de um ano típico. 
+    A central fotovoltaica gera um total de ${totalProd.toLocaleString()} kWh, sendo o inversor responsável pela gestão inteligente desta energia. 
+    O consumo do edifício (${totalLoad.toLocaleString()} kWh) é satisfeito prioritariamente pela produção solar direta (${selfCons.toLocaleString()} kWh)${battDischarge > 0 ? ` e pelo sistema de baterias (${battDischarge.toLocaleString()} kWh)` : ''}. 
+    A rede elétrica atua como backup, fornecendo apenas a energia remanescente necessária e absorvendo o excedente de produção.`;
 };
 
 const generateSimulationText = (sim: any) => {
@@ -125,16 +149,16 @@ const ReportPage = ({ title, number, icon: Icon, children, analysisText }: any) 
                     {analysisText}
                 </p>
             </div>
-            {/* Page Number Placeholder (Optional) */}
+            {/* Page Number Placeholder */}
             <div className="text-right text-xs text-slate-400 mt-4">
-                Página {number + 2}
+               Página: {number}
             </div>
         </div>
         )}
         
         {!analysisText && (
              <div className="mt-auto text-right text-xs text-slate-400">
-                K-PVPROSIM Report
+                K-PVPROSIM Report - {number}
              </div>
         )}
     </div>
@@ -151,22 +175,24 @@ export const ReportView: React.FC<ReportViewProps> = ({ project }) => {
   const totalPanels = project.roofSegments.reduce((sum, seg) => sum + seg.panelsCount, 0);
   const installedPowerKw = (totalPanels * (panel?.powerW || 0)) / 1000;
   
+  const totalInverterPowerKw = (inverter?.maxPowerKw || 0) * inverterCount;
+  const totalBatteryCapacityKwh = battery ? (battery.capacityKwh * batteryCount) : 0;
+  const totalBatteryPowerKw = battery ? (battery.maxDischargeKw * batteryCount) : 0;
+
   // Area Calculation
   const singlePanelAreaM2 = (panel ? (panel.widthMm * panel.heightMm) : 0) / 1000000;
   const totalPanelAreaM2 = singlePanelAreaM2 * totalPanels;
   const totalRoofAreaM2 = project.roofSegments.reduce((sum, seg) => {
       if (seg.isPolygon && seg.vertices) {
-          return sum + (seg.width * seg.height); // Simplified
+          return sum + (seg.width * seg.height); 
       }
       return sum + (seg.width * seg.height);
   }, 0);
 
-  // Inverter Area (Assuming Wall Mount: Width x Height)
   const totalInvAreaM2 = inverter?.dimensions 
       ? (inverter.dimensions.width * inverter.dimensions.height * inverterCount) / 1000000 
       : 0;
 
-  // Battery Area (Assuming Floor Standing: Width x Depth)
   const totalBatAreaM2 = battery?.dimensions 
       ? (battery.dimensions.width * battery.dimensions.depth * batteryCount) / 1000000 
       : 0;
@@ -179,7 +205,6 @@ export const ReportView: React.FC<ReportViewProps> = ({ project }) => {
   const subtotal = budgetItems.reduce((sum, item) => sum + item.totalPrice, 0);
   const totalBudget = subtotal * 1.06; // VAT
 
-  // Data Prep
   const climateData = project.climateData;
   const totalAnnualRad = climateData 
       ? Math.round(climateData.hourlyRad.reduce((a, b) => a + b, 0) / 1000) 
@@ -192,7 +217,6 @@ export const ReportView: React.FC<ReportViewProps> = ({ project }) => {
       hum: parseFloat(climateData.monthlyHum[i].toFixed(0))
   })) : [];
   
-  // Consumption Data Generation
   const guaranteedHourlyLoad = useMemo(() => {
      if (project.loadProfile.hourlyData && project.loadProfile.hourlyData.length === 8760) {
          return project.loadProfile.hourlyData;
@@ -242,7 +266,6 @@ export const ReportView: React.FC<ReportViewProps> = ({ project }) => {
       });
   }, [guaranteedHourlyLoad]);
 
-  // Annual Daily Data for Report Chart
   const annualDailyLoad = useMemo(() => {
       const data = [];
       for (let d = 0; d < 365; d++) {
@@ -250,13 +273,10 @@ export const ReportView: React.FC<ReportViewProps> = ({ project }) => {
           for (let h = 0; h < 24; h++) {
               sum += guaranteedHourlyLoad[d*24 + h] || 0;
           }
-          // Downsample slightly for print rendering if needed, but 365 points is fine for AreaChart
           data.push({ day: d, load: sum });
       }
       return data;
   }, [guaranteedHourlyLoad]);
-
-  // ----------------------------------------
 
   const simMonthlyData = sim ? sim.hourlyProduction.reduce((acc: any[], val, idx) => {
       const monthIdx = Math.floor(idx / 730.5) % 12;
@@ -277,7 +297,6 @@ export const ReportView: React.FC<ReportViewProps> = ({ project }) => {
   const selfConsumedKwh = sim ? sim.totalProductionKwh - sim.totalExportKwh : 0;
   const selfSufficiencyKwh = sim ? sim.totalLoadKwh - sim.totalImportKwh : 0;
 
-  // -- Annual Energy Sources Data --
   const annualSources = {
       direct: sim?.hourlySelfConsumptionDirect?.reduce((a,b)=>a+b,0) || 0,
       battery: sim?.hourlySelfConsumptionBattery?.reduce((a,b)=>a+b,0) || 0,
@@ -286,10 +305,8 @@ export const ReportView: React.FC<ReportViewProps> = ({ project }) => {
   };
 
   const monthlySourcesData = sim ? MONTH_NAMES.map((m, i) => {
-      // Simplified approximation for monthly indexing
       const start = Math.floor(i * 30.41 * 24);
       const end = Math.floor((i+1) * 30.41 * 24);
-      
       const sliceDirect = sim.hourlySelfConsumptionDirect?.slice(start, end).reduce((a,b)=>a+b,0) || 0;
       const sliceBattery = sim.hourlySelfConsumptionBattery?.slice(start, end).reduce((a,b)=>a+b,0) || 0;
       const sliceGrid = sim.hourlyGridImport?.slice(start, end).reduce((a,b)=>a+b,0) || 0;
@@ -302,12 +319,27 @@ export const ReportView: React.FC<ReportViewProps> = ({ project }) => {
       };
   }) : [];
 
+  const batteryAnnualFlow = useMemo(() => {
+      if (!sim) return { charge: 0, discharge: 0 };
+      let charge = 0;
+      let discharge = 0;
+      for(let i=0; i<8760; i++) {
+          const p = sim.hourlyProduction[i];
+          const l = sim.hourlyLoad[i];
+          const exp = sim.hourlyGridExport[i];
+          const imp = sim.hourlyGridImport[i];
+          const flow = p + imp - l - exp; 
+          if (flow > 0.001) charge += flow;
+          else if (flow < -0.001) discharge += Math.abs(flow);
+      }
+      return { charge, discharge };
+  }, [sim]);
+
   const svgWidth = 600;
   const startX = 50;
   const startY = 20;
 
-  // -- EXPORT HANDLERS --
-
+  // Export handlers
   const handleExportHTML = () => {
       if (!reportRef.current) return;
       const htmlContent = reportRef.current.innerHTML;
@@ -347,7 +379,6 @@ export const ReportView: React.FC<ReportViewProps> = ({ project }) => {
 
   const handleExportWord = () => {
       if (!reportRef.current) return;
-      // Word does not support Tailwind scripts. We need basic inline CSS or style block.
       const htmlContent = reportRef.current.innerHTML;
       const doc = `
         <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
@@ -391,26 +422,14 @@ export const ReportView: React.FC<ReportViewProps> = ({ project }) => {
         {/* Floating Toolbar */}
         <div className="fixed bottom-8 right-8 print:hidden z-50 flex flex-col gap-3 items-end">
             <div className="bg-white p-2 rounded-lg shadow-xl border border-gray-200 flex flex-col gap-2">
-                <button 
-                    onClick={handleExportWord} 
-                    className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-blue-800 hover:bg-blue-50 rounded transition-colors w-full justify-end"
-                    title="Exportar para Word (Layout Simplificado)"
-                >
+                <button onClick={handleExportWord} className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-blue-800 hover:bg-blue-50 rounded transition-colors w-full justify-end" title="Exportar para Word (Layout Simplificado)">
                     Exportar Word (.doc) <FileType size={18} />
                 </button>
-                <button 
-                    onClick={handleExportHTML} 
-                    className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-orange-700 hover:bg-orange-50 rounded transition-colors w-full justify-end"
-                    title="Exportar HTML (Layout Original)"
-                >
+                <button onClick={handleExportHTML} className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-orange-700 hover:bg-orange-50 rounded transition-colors w-full justify-end" title="Exportar HTML (Layout Original)">
                     Exportar HTML <FileCode size={18} />
                 </button>
             </div>
-            <button 
-                onClick={() => window.print()} 
-                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-4 rounded-full shadow-xl flex items-center gap-2 font-bold transition-transform hover:scale-105"
-                title="Imprimir ou Guardar como PDF"
-            >
+            <button onClick={() => window.print()} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-4 rounded-full shadow-xl flex items-center gap-2 font-bold transition-transform hover:scale-105" title="Imprimir ou Guardar como PDF">
                 <Printer /> Imprimir / PDF
             </button>
         </div>
@@ -422,38 +441,19 @@ export const ReportView: React.FC<ReportViewProps> = ({ project }) => {
         <div className="h-auto min-h-[297mm] print:h-screen print:min-h-0 print:overflow-hidden p-12 flex flex-col justify-between bg-gradient-to-br from-slate-900 to-slate-800 text-white print:shadow-none shadow-lg mb-8 print:mb-0 relative overflow-hidden break-after-page">
             <div className="absolute top-0 left-0 w-full h-4 bg-blue-600"></div>
             <div className="absolute -right-20 -top-20 w-96 h-96 bg-blue-600/20 rounded-full opacity-50 blur-3xl"></div>
-            
-            <div className="absolute top-12 right-12 z-20">
-                <Logo className="h-16 w-auto text-white" />
-            </div>
-
+            <div className="absolute top-12 right-12 z-20"><Logo className="h-16 w-auto text-white" /></div>
             <div className="mt-32 relative z-10">
                 <div className="text-blue-400 font-bold tracking-[0.3em] uppercase mb-4 text-sm">Estudo de Viabilidade</div>
-                <h1 className="text-6xl font-extrabold text-white mb-8 leading-tight">
-                    Projeto <br/>Fotovoltaico
-                </h1>
+                <h1 className="text-6xl font-extrabold text-white mb-8 leading-tight">Projeto <br/>Fotovoltaico</h1>
                 <div className="w-32 h-2 bg-yellow-400 mb-12"></div>
-                
                 <div className="space-y-8 text-lg bg-white/10 p-8 rounded-xl backdrop-blur-sm border border-white/10">
-                    <div>
-                        <p className="text-slate-400 font-bold uppercase text-xs tracking-wider mb-1">Cliente</p>
-                        <p className="text-3xl font-bold text-white">{project.settings.clientName}</p>
-                    </div>
-                    <div>
-                        <p className="text-slate-400 font-bold uppercase text-xs tracking-wider mb-1">Localização</p>
-                        <p className="text-xl text-slate-200">{project.settings.address}</p>
-                    </div>
-                    <div>
-                        <p className="text-slate-400 font-bold uppercase text-xs tracking-wider mb-1">Capacidade</p>
-                        <p className="text-xl text-slate-200 font-medium">{installedPowerKw.toFixed(2)} kWp</p>
-                    </div>
+                    <div><p className="text-slate-400 font-bold uppercase text-xs tracking-wider mb-1">Cliente</p><p className="text-3xl font-bold text-white">{project.settings.clientName}</p></div>
+                    <div><p className="text-slate-400 font-bold uppercase text-xs tracking-wider mb-1">Localização</p><p className="text-xl text-slate-200">{project.settings.address}</p></div>
+                    <div><p className="text-slate-400 font-bold uppercase text-xs tracking-wider mb-1">Capacidade</p><p className="text-xl text-slate-200 font-medium">{installedPowerKw.toFixed(2)} kWp</p></div>
                 </div>
             </div>
-
             <div className="flex justify-between items-end border-t border-slate-600 pt-8">
-                <div className="text-left">
-                    <p className="text-slate-400 font-medium">www.koelho2000.com</p>
-                </div>
+                <div className="text-left"><p className="text-slate-400 font-medium">www.koelho2000.com</p></div>
                 <div className="text-right">
                     <p className="font-bold text-white text-xl">K-PVPROSIM</p>
                     <p className="text-slate-400">{new Date().toLocaleDateString('pt-PT', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
@@ -467,64 +467,25 @@ export const ReportView: React.FC<ReportViewProps> = ({ project }) => {
             <div>
                 <h2 className="text-3xl font-bold text-slate-800 mb-12 border-b-2 border-slate-800 pb-4">Índice do Relatório</h2>
                 <ul className="space-y-6 text-lg mb-16 px-4">
-                    <li className="flex justify-between items-center border-b border-dotted border-slate-300 pb-2">
-                        <span className="flex items-center gap-3"><MapPin size={18} className="text-slate-400"/> Localização e Dados Climáticos</span> 
-                        <span className="font-bold text-slate-600">3</span>
-                    </li>
-                    <li className="flex justify-between items-center border-b border-dotted border-slate-300 pb-2">
-                        <span className="flex items-center gap-3"><BarChart3 size={18} className="text-slate-400"/> Perfil de Consumo</span> 
-                        <span className="font-bold text-slate-600">4</span>
-                    </li>
-                    <li className="flex justify-between items-center border-b border-dotted border-slate-300 pb-2">
-                        <span className="flex items-center gap-3"><Sun size={18} className="text-slate-400"/> Equipamento Proposto</span> 
-                        <span className="font-bold text-slate-600">5</span>
-                    </li>
-                    <li className="flex justify-between items-center border-b border-dotted border-slate-300 pb-2">
-                        <span className="flex items-center gap-3"><Zap size={18} className="text-slate-400"/> Diagrama Elétrico (Unifilar)</span> 
-                        <span className="font-bold text-slate-600">6</span>
-                    </li>
-                    <li className="flex justify-between items-center border-b border-dotted border-slate-300 pb-2">
-                        <span className="flex items-center gap-3"><Zap size={18} className="text-slate-400"/> Matriz de Strings</span> 
-                        <span className="font-bold text-slate-600">7</span>
-                    </li>
-                    <li className="flex justify-between items-center border-b border-dotted border-slate-300 pb-2">
-                        <span className="flex items-center gap-3"><TrendingUp size={18} className="text-slate-400"/> Resultados da Simulação</span> 
-                        <span className="font-bold text-slate-600">8</span>
-                    </li>
-                    <li className="flex justify-between items-center border-b border-dotted border-slate-300 pb-2">
-                        <span className="flex items-center gap-3"><TrendingUp size={18} className="text-slate-400"/> Análise de Fontes de Energia</span> 
-                        <span className="font-bold text-slate-600">9</span>
-                    </li>
-                    <li className="flex justify-between items-center border-b border-dotted border-slate-300 pb-2">
-                        <span className="flex items-center gap-3"><FileText size={18} className="text-slate-400"/> Orçamento Detalhado</span> 
-                        <span className="font-bold text-slate-600">10</span>
-                    </li>
-                    <li className="flex justify-between items-center border-b border-dotted border-slate-300 pb-2">
-                        <span className="flex items-center gap-3"><ShieldCheck size={18} className="text-slate-400"/> Análise Financeira</span> 
-                        <span className="font-bold text-slate-600">11</span>
-                    </li>
+                    <li className="flex justify-between items-center border-b border-dotted border-slate-300 pb-2"><span className="flex items-center gap-3"><MapPin size={18} className="text-slate-400"/> Localização e Dados Climáticos</span><span className="font-bold text-slate-600">3</span></li>
+                    <li className="flex justify-between items-center border-b border-dotted border-slate-300 pb-2"><span className="flex items-center gap-3"><BarChart3 size={18} className="text-slate-400"/> Perfil de Consumo</span><span className="font-bold text-slate-600">4</span></li>
+                    <li className="flex justify-between items-center border-b border-dotted border-slate-300 pb-2"><span className="flex items-center gap-3"><Sun size={18} className="text-slate-400"/> Equipamento Proposto</span><span className="font-bold text-slate-600">5</span></li>
+                    <li className="flex justify-between items-center border-b border-dotted border-slate-300 pb-2"><span className="flex items-center gap-3"><Layout size={18} className="text-slate-400"/> Análise da Cobertura e Produtividade</span><span className="font-bold text-slate-600">5A</span></li>
+                    <li className="flex justify-between items-center border-b border-dotted border-slate-300 pb-2"><span className="flex items-center gap-3"><Zap size={18} className="text-slate-400"/> Diagrama Elétrico (Unifilar)</span><span className="font-bold text-slate-600">6</span></li>
+                    <li className="flex justify-between items-center border-b border-dotted border-slate-300 pb-2"><span className="flex items-center gap-3"><Zap size={18} className="text-slate-400"/> Matriz de Strings</span><span className="font-bold text-slate-600">7</span></li>
+                    <li className="flex justify-between items-center border-b border-dotted border-slate-300 pb-2"><span className="flex items-center gap-3"><Activity size={18} className="text-slate-400"/> Esquema de Monitorização e Balanço</span><span className="font-bold text-slate-600">8</span></li>
+                    <li className="flex justify-between items-center border-b border-dotted border-slate-300 pb-2"><span className="flex items-center gap-3"><TrendingUp size={18} className="text-slate-400"/> Resultados da Simulação</span><span className="font-bold text-slate-600">9</span></li>
+                    <li className="flex justify-between items-center border-b border-dotted border-slate-300 pb-2"><span className="flex items-center gap-3"><TrendingUp size={18} className="text-slate-400"/> Análise de Fontes de Energia</span><span className="font-bold text-slate-600">10</span></li>
+                    <li className="flex justify-between items-center border-b border-dotted border-slate-300 pb-2"><span className="flex items-center gap-3"><FileText size={18} className="text-slate-400"/> Orçamento Detalhado</span><span className="font-bold text-slate-600">11</span></li>
+                    <li className="flex justify-between items-center border-b border-dotted border-slate-300 pb-2"><span className="flex items-center gap-3"><ShieldCheck size={18} className="text-slate-400"/> Análise Financeira</span><span className="font-bold text-slate-600">12</span></li>
                 </ul>
-
                 <h2 className="text-2xl font-bold text-slate-800 mb-6">Resumo Executivo</h2>
                 <div className="bg-slate-50 p-8 rounded-lg border border-slate-200 shadow-sm">
-                    <p className="mb-8 text-justify leading-relaxed text-slate-700">
-                        O presente estudo analisa a implementação de uma unidade de produção fotovoltaica para <strong>{project.settings.clientName}</strong>. 
-                        A solução técnica foi dimensionada para maximizar a rentabilidade financeira e a independência energética. 
-                        Com uma potência de <strong>{installedPowerKw.toFixed(2)} kWp</strong>, o sistema evitará a emissão de toneladas de CO2 e reduzirá significativamente a fatura elétrica mensal.
-                    </p>
+                    <p className="mb-8 text-justify leading-relaxed text-slate-700">O presente estudo analisa a implementação de uma unidade de produção fotovoltaica para <strong>{project.settings.clientName}</strong>. A solução técnica foi dimensionada para maximizar a rentabilidade financeira e a independência energética. Com uma potência de <strong>{installedPowerKw.toFixed(2)} kWp</strong>, o sistema evitará a emissão de toneladas de CO2 e reduzirá significativamente a fatura elétrica mensal.</p>
                     <div className="grid grid-cols-3 gap-8 text-center">
-                        <div className="p-4 bg-white rounded shadow-sm border">
-                            <p className="text-xs text-slate-400 uppercase font-bold tracking-wider">Autonomia</p>
-                            <p className="text-3xl font-bold text-blue-600 mt-2">{sim ? (sim.autonomyRatio * 100).toFixed(0) : 0}%</p>
-                        </div>
-                        <div className="p-4 bg-white rounded shadow-sm border">
-                            <p className="text-xs text-slate-400 uppercase font-bold tracking-wider">Payback</p>
-                            <p className="text-3xl font-bold text-green-600 mt-2">{financials.paybackPeriodYears.toFixed(1)} <span className="text-sm text-slate-400">Anos</span></p>
-                        </div>
-                        <div className="p-4 bg-white rounded shadow-sm border">
-                            <p className="text-xs text-slate-400 uppercase font-bold tracking-wider">Poupança (15A)</p>
-                            <p className="text-3xl font-bold text-slate-700 mt-2">{financials.totalSavings15YearsEur.toLocaleString('pt-PT', {style:'currency', currency:'EUR', maximumFractionDigits:0})}</p>
-                        </div>
+                        <div className="p-4 bg-white rounded shadow-sm border"><p className="text-xs text-slate-400 uppercase font-bold tracking-wider">Autonomia</p><p className="text-3xl font-bold text-blue-600 mt-2">{sim ? (sim.autonomyRatio * 100).toFixed(0) : 0}%</p></div>
+                        <div className="p-4 bg-white rounded shadow-sm border"><p className="text-xs text-slate-400 uppercase font-bold tracking-wider">Payback</p><p className="text-3xl font-bold text-green-600 mt-2">{financials.paybackPeriodYears.toFixed(1)} <span className="text-sm text-slate-400">Anos</span></p></div>
+                        <div className="p-4 bg-white rounded shadow-sm border"><p className="text-xs text-slate-400 uppercase font-bold tracking-wider">Poupança (15A)</p><p className="text-3xl font-bold text-slate-700 mt-2">{financials.totalSavings15YearsEur.toLocaleString('pt-PT', {style:'currency', currency:'EUR', maximumFractionDigits:0})}</p></div>
                     </div>
                 </div>
             </div>
@@ -532,7 +493,7 @@ export const ReportView: React.FC<ReportViewProps> = ({ project }) => {
         </div>
 
         {/* --- PAGE 3: LOCALIZAÇÃO --- */}
-        <ReportPage title="Localização e Clima" number="1" icon={MapPin} analysisText={generateLocationText(project)}>
+        <ReportPage title="Localização e Clima" number="3" icon={MapPin} analysisText={generateLocationText(project)}>
             <div className="grid grid-cols-2 gap-8 mb-8">
                  <div className="space-y-4">
                      <div className="bg-slate-50 p-4 rounded border">
@@ -544,13 +505,11 @@ export const ReportView: React.FC<ReportViewProps> = ({ project }) => {
                              <li className="flex justify-between"><span>Fonte Dados:</span> <span className="font-bold">{project.settings.climateDataSource === 'epw' ? 'EPW' : 'Sintético'}</span></li>
                          </ul>
                      </div>
-                     {/* GHI Card */}
                      <div className="bg-orange-50 p-4 rounded border border-orange-200">
                          <h4 className="font-bold text-sm text-orange-800 mb-1 flex items-center gap-2"><Sun size={16}/> Produtividade Solar (GHI)</h4>
                          <p className="text-3xl font-extrabold text-orange-600">{totalAnnualRad.toLocaleString()} <span className="text-sm font-medium text-slate-600">kWh/m²/ano</span></p>
                      </div>
                  </div>
-                 
                  <div className="h-full min-h-[14rem] border rounded p-2 flex flex-col">
                     <h5 className="text-center text-xs font-bold text-slate-500 mb-2">Temperatura Média & Radiação Global</h5>
                     <div className="flex-1">
@@ -558,8 +517,8 @@ export const ReportView: React.FC<ReportViewProps> = ({ project }) => {
                             <ComposedChart data={climateChartData}>
                                 <CartesianGrid strokeDasharray="3 3" />
                                 <XAxis dataKey="name" interval={0} fontSize={10} />
-                                <YAxis yAxisId="left" orientation="left" stroke="#ef4444" fontSize={10} label={{ value: '°C', angle: -90, position: 'insideLeft' }}/>
-                                <YAxis yAxisId="right" orientation="right" stroke="#eab308" fontSize={10} label={{ value: 'kWh/m²', angle: 90, position: 'insideRight' }}/>
+                                <YAxis yAxisId="left" orientation="left" stroke="#ef4444" fontSize={10} />
+                                <YAxis yAxisId="right" orientation="right" stroke="#eab308" fontSize={10} />
                                 <Legend wrapperStyle={{fontSize: '10px'}}/>
                                 <Line yAxisId="left" type="monotone" dataKey="temp" name="Temp (°C)" stroke="#ef4444" dot={false} strokeWidth={2} />
                                 <Area yAxisId="right" type="monotone" dataKey="rad" name="Radiação (kWh/m²)" fill="#fef08a" stroke="#eab308" />
@@ -568,179 +527,72 @@ export const ReportView: React.FC<ReportViewProps> = ({ project }) => {
                     </div>
                  </div>
             </div>
-
-            <div className="overflow-hidden border rounded">
-                <table className="w-full text-xs text-center border-collapse">
-                    <thead className="bg-slate-100 font-bold text-slate-600">
-                        <tr>
-                            <th className="p-2 text-left">Parâmetro</th>
-                            {MONTH_NAMES.map(m => <th key={m} className="p-2 border-l">{m.substring(0,3)}</th>)}
-                            <th className="p-2 border-l bg-blue-100 font-bold">Média</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y">
-                        <tr>
-                            <td className="p-2 font-medium text-left bg-slate-50">Temp (°C)</td>
-                            {climateChartData.map((d,i) => <td key={i} className="p-2 border-l">{d.temp}</td>)}
-                            <td className="p-2 border-l bg-blue-50 font-bold">{(climateChartData.reduce((a,b)=>a+b.temp,0)/12).toFixed(1)}</td>
-                        </tr>
-                        <tr>
-                            <td className="p-2 font-medium text-left bg-slate-50">Rad (kWh)</td>
-                            {climateChartData.map((d,i) => <td key={i} className="p-2 border-l">{d.rad}</td>)}
-                            <td className="p-2 border-l bg-blue-50 font-bold">{(climateChartData.reduce((a,b)=>a+b.rad,0)/12).toFixed(1)}</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
+            <div className="overflow-hidden border rounded"><table className="w-full text-xs text-center border-collapse"><thead className="bg-slate-100 font-bold text-slate-600"><tr><th className="p-2 text-left">Parâmetro</th>{MONTH_NAMES.map(m => <th key={m} className="p-2 border-l">{m.substring(0,3)}</th>)}<th className="p-2 border-l bg-blue-100 font-bold">Média</th></tr></thead><tbody className="divide-y"><tr><td className="p-2 font-medium text-left bg-slate-50">Temp (°C)</td>{climateChartData.map((d,i) => <td key={i} className="p-2 border-l">{d.temp}</td>)}<td className="p-2 border-l bg-blue-50 font-bold">{(climateChartData.reduce((a,b)=>a+b.temp,0)/12).toFixed(1)}</td></tr><tr><td className="p-2 font-medium text-left bg-slate-50">Rad (kWh)</td>{climateChartData.map((d,i) => <td key={i} className="p-2 border-l">{d.rad}</td>)}<td className="p-2 border-l bg-blue-50 font-bold">{(climateChartData.reduce((a,b)=>a+b.rad,0)/12).toFixed(1)}</td></tr></tbody></table></div>
         </ReportPage>
 
         {/* --- PAGE 4: CONSUMO --- */}
-        <ReportPage title="Perfil de Consumo" number="2" icon={BarChart3} analysisText={generateConsumptionText(project)}>
+        <ReportPage title="Perfil de Consumo" number="4" icon={BarChart3} analysisText={generateConsumptionText(project)}>
             <div className="bg-slate-50 p-4 rounded border mb-6 flex justify-around text-center">
-                 <div>
-                     <p className="text-xs text-slate-500 font-bold uppercase">Consumo Anual</p>
-                     <p className="text-2xl font-bold text-slate-800">{project.loadProfile.annualConsumptionKwh.toLocaleString()} kWh</p>
-                 </div>
-                 <div>
-                     <p className="text-xs text-slate-500 font-bold uppercase">Potência Pico</p>
-                     <p className="text-2xl font-bold text-slate-800">{project.loadProfile.peakLoadKw} kW</p>
-                 </div>
-                 <div>
-                     <p className="text-xs text-slate-500 font-bold uppercase">Potência Base</p>
-                     <p className="text-2xl font-bold text-slate-800">{project.loadProfile.baseLoadKw} kW</p>
-                 </div>
+                 <div><p className="text-xs text-slate-500 font-bold uppercase">Consumo Anual</p><p className="text-2xl font-bold text-slate-800">{project.loadProfile.annualConsumptionKwh.toLocaleString()} kWh</p></div>
+                 <div><p className="text-xs text-slate-500 font-bold uppercase">Potência Pico</p><p className="text-2xl font-bold text-slate-800">{project.loadProfile.peakLoadKw} kW</p></div>
+                 <div><p className="text-xs text-slate-500 font-bold uppercase">Potência Base</p><p className="text-2xl font-bold text-slate-800">{project.loadProfile.baseLoadKw} kW</p></div>
             </div>
-
             <div className="grid grid-cols-2 gap-4">
-                <div className="h-48 border rounded p-4 shadow-sm">
-                    <h5 className="text-center text-sm font-bold text-slate-500 mb-2">Perfil Diário Médio (kW)</h5>
-                    <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={dailyLoadProfile}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                            <XAxis dataKey="hour" fontSize={10} tickLine={false} axisLine={false} />
-                            <YAxis fontSize={10} tickLine={false} axisLine={false} />
-                            <Tooltip />
-                            <Line type="monotone" dataKey="load" stroke="#3b82f6" strokeWidth={3} dot={false} activeDot={{r: 4}} />
-                        </LineChart>
-                    </ResponsiveContainer>
-                </div>
-                <div className="h-48 border rounded p-4 shadow-sm">
-                    <h5 className="text-center text-sm font-bold text-slate-500 mb-2">Sazonalidade Mensal (kWh)</h5>
-                    <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={loadMonthlyData}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                            <XAxis dataKey="name" fontSize={10} interval={0} tickLine={false} axisLine={false}/>
-                            <YAxis fontSize={10} tickLine={false} axisLine={false}/>
-                            <Tooltip />
-                            <Bar dataKey="load" fill="#94a3b8" radius={[4, 4, 0, 0]} />
-                        </BarChart>
-                    </ResponsiveContainer>
-                </div>
+                <div className="h-48 border rounded p-4 shadow-sm"><h5 className="text-center text-sm font-bold text-slate-500 mb-2">Perfil Diário Médio (kW)</h5><ResponsiveContainer width="100%" height="100%"><LineChart data={dailyLoadProfile}><CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="hour" fontSize={10} tickLine={false} axisLine={false} /><YAxis fontSize={10} tickLine={false} axisLine={false} /><Tooltip /><Line type="monotone" dataKey="load" stroke="#3b82f6" strokeWidth={3} dot={false} activeDot={{r: 4}} /></LineChart></ResponsiveContainer></div>
+                <div className="h-48 border rounded p-4 shadow-sm"><h5 className="text-center text-sm font-bold text-slate-500 mb-2">Sazonalidade Mensal (kWh)</h5><ResponsiveContainer width="100%" height="100%"><BarChart data={loadMonthlyData}><CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="name" fontSize={10} interval={0} tickLine={false} axisLine={false}/><YAxis fontSize={10} tickLine={false} axisLine={false}/><Tooltip /><Bar dataKey="load" fill="#94a3b8" radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer></div>
             </div>
-
-            {/* NEW: Annual Hourly Chart (Daily) */}
-            <div className="h-48 border rounded p-4 shadow-sm mt-4">
-                <h5 className="text-center text-sm font-bold text-slate-500 mb-2">Evolução Anual do Consumo (kWh/dia)</h5>
-                <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={annualDailyLoad}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                        <XAxis dataKey="day" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(val) => val % 30 === 0 ? val : ''}/>
-                        <YAxis fontSize={10} tickLine={false} axisLine={false} />
-                        <Tooltip labelFormatter={(label) => `Dia ${label}`} />
-                        <Area type="monotone" dataKey="load" stroke="#f59e0b" fill="#fcd34d" />
-                    </AreaChart>
-                </ResponsiveContainer>
-            </div>
+            <div className="h-48 border rounded p-4 shadow-sm mt-4"><h5 className="text-center text-sm font-bold text-slate-500 mb-2">Evolução Anual do Consumo (kWh/dia)</h5><ResponsiveContainer width="100%" height="100%"><AreaChart data={annualDailyLoad}><CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="day" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(val) => val % 30 === 0 ? val : ''}/><YAxis fontSize={10} tickLine={false} axisLine={false} /><Tooltip labelFormatter={(label) => `Dia ${label}`} /><Area type="monotone" dataKey="load" stroke="#f59e0b" fill="#fcd34d" /></AreaChart></ResponsiveContainer></div>
         </ReportPage>
 
         {/* --- PAGE 5: EQUIPAMENTO --- */}
-        <ReportPage title="Equipamento Proposto" number="3" icon={Sun} analysisText={generateEquipmentText(project)}>
+        <ReportPage title="Equipamento Proposto" number="5" icon={Sun} analysisText={generateEquipmentText(project)}>
+             <div className="grid grid-cols-3 gap-6 mb-8">
+                <div className="bg-blue-50 p-4 rounded-lg border border-blue-200 text-center"><p className="text-xs font-bold text-blue-700 uppercase mb-1">Potência Fotovoltaica</p><p className="text-2xl font-extrabold text-slate-800">{installedPowerKw.toFixed(2)} <span className="text-sm font-medium text-slate-500">kWp</span></p></div>
+                <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200 text-center"><p className="text-xs font-bold text-yellow-700 uppercase mb-1">Potência de Inversão</p><p className="text-2xl font-extrabold text-slate-800">{totalInverterPowerKw.toFixed(2)} <span className="text-sm font-medium text-slate-500">kW</span></p></div>
+                <div className="bg-green-50 p-4 rounded-lg border border-green-200 text-center"><p className="text-xs font-bold text-green-700 uppercase mb-1">Capacidade Baterias</p><p className="text-2xl font-extrabold text-slate-800">{totalBatteryCapacityKwh.toFixed(1)} <span className="text-sm font-medium text-slate-500">kWh</span></p>{battery && <p className="text-xs text-green-600 mt-1">Pot: {totalBatteryPowerKw.toFixed(1)} kW</p>}</div>
+             </div>
              <div className="space-y-6">
-                {/* Modules */}
-                <div className="flex gap-6 border p-6 rounded-xl bg-slate-50 shadow-sm items-start">
-                    <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center shrink-0 text-blue-600">
-                        <Sun size={32} />
-                    </div>
-                    <div className="flex-1">
-                        <h3 className="font-bold text-lg text-slate-800 mb-1">Módulos Fotovoltaicos</h3>
-                        <p className="text-blue-600 font-medium mb-3">{totalPanels}x {panel?.manufacturer} {panel?.model}</p>
-                        <div className="grid grid-cols-2 gap-y-2 text-sm text-slate-600">
-                            <p>Potência Unitária: <strong>{panel?.powerW} W</strong></p>
-                            <p>Tecnologia: <strong>Monocristalino PERC/TOPCon</strong></p>
-                            <p>Eficiência: <strong>{(panel?.efficiency! * 100).toFixed(1)} %</strong></p>
-                            <p>Garantia Prod.: <strong>25 Anos</strong></p>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Area Metrics */}
-                <div className="flex gap-6 border p-6 rounded-xl bg-slate-50 shadow-sm items-start">
-                    <div className="w-16 h-16 bg-purple-100 rounded-2xl flex items-center justify-center shrink-0 text-purple-600">
-                        <BarChart3 size={32} />
-                    </div>
-                    <div className="flex-1">
-                        <h3 className="font-bold text-lg text-slate-800 mb-1">Ocupação de Área</h3>
-                        <div className="grid grid-cols-2 gap-y-2 text-sm text-slate-600 mt-2">
-                             <div>
-                                 <p className="text-xs font-bold text-slate-400 uppercase">Área Total Painéis</p>
-                                 <p className="text-xl font-bold text-slate-800">{totalPanelAreaM2.toFixed(1)} m²</p>
-                             </div>
-                             <div>
-                                 <p className="text-xs font-bold text-slate-400 uppercase">Área Disponível</p>
-                                 <p className="text-xl font-bold text-slate-800">{totalRoofAreaM2.toFixed(1)} m²</p>
-                             </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Inverter */}
-                <div className="flex gap-6 border p-6 rounded-xl bg-slate-50 shadow-sm items-start">
-                    <div className="w-16 h-16 bg-yellow-100 rounded-2xl flex items-center justify-center shrink-0 text-yellow-600">
-                        <Zap size={32} />
-                    </div>
-                    <div className="flex-1">
-                        <h3 className="font-bold text-lg text-slate-800 mb-1">Inversor Solar</h3>
-                        <p className="text-yellow-600 font-medium mb-3">{inverterCount}x {inverter?.manufacturer} {inverter?.model}</p>
-                        <div className="grid grid-cols-2 gap-y-2 text-sm text-slate-600">
-                            <p>Potência AC: <strong>{inverter?.maxPowerKw} kW</strong></p>
-                            <p>MPPTs: <strong>{inverter?.numMppts}</strong></p>
-                            <p>Fases: <strong>{inverter?.phases === 3 ? 'Trifásico' : 'Monofásico'}</strong></p>
-                            <p>Área Parede: <strong>{totalInvAreaM2.toFixed(2)} m²</strong></p>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Battery */}
-                {battery && (
-                <div className="flex gap-6 border p-6 rounded-xl bg-slate-50 shadow-sm items-start">
-                    <div className="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center shrink-0 text-green-600">
-                        <Battery size={32} />
-                    </div>
-                    <div className="flex-1">
-                        <h3 className="font-bold text-lg text-slate-800 mb-1">Baterias de Lítio</h3>
-                        <p className="text-green-600 font-medium mb-3">{project.systemConfig.batteryCount||1}x {battery.manufacturer} {battery.model}</p>
-                        <div className="grid grid-cols-2 gap-y-2 text-sm text-slate-600">
-                            <p>Capacidade Total: <strong>{(battery.capacityKwh * (project.systemConfig.batteryCount||1)).toFixed(1)} kWh</strong></p>
-                            <p>Tecnologia: <strong>LiFePO4</strong></p>
-                            <p>Potência Descarga: <strong>{battery.maxDischargeKw} kW</strong></p>
-                            <p>Área Implantação: <strong>{totalBatAreaM2.toFixed(2)} m²</strong></p>
-                        </div>
-                    </div>
-                </div>
-                )}
+                <div className="flex gap-6 border p-6 rounded-xl bg-slate-50 shadow-sm items-start"><div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center shrink-0 text-blue-600"><Sun size={32} /></div><div className="flex-1"><h3 className="font-bold text-lg text-slate-800 mb-1">Módulos Fotovoltaicos</h3><p className="text-blue-600 font-medium mb-3">{totalPanels}x {panel?.manufacturer} {panel?.model}</p><div className="grid grid-cols-2 gap-y-2 text-sm text-slate-600"><p>Potência Unitária: <strong>{panel?.powerW} W</strong></p><p>Tecnologia: <strong>Monocristalino PERC/TOPCon</strong></p><p>Eficiência: <strong>{(panel?.efficiency! * 100).toFixed(1)} %</strong></p><p>Garantia Prod.: <strong>25 Anos</strong></p></div></div></div>
+                <div className="flex gap-6 border p-6 rounded-xl bg-slate-50 shadow-sm items-start"><div className="w-16 h-16 bg-purple-100 rounded-2xl flex items-center justify-center shrink-0 text-purple-600"><BarChart3 size={32} /></div><div className="flex-1"><h3 className="font-bold text-lg text-slate-800 mb-1">Ocupação de Área</h3><div className="grid grid-cols-2 gap-y-2 text-sm text-slate-600 mt-2"><div><p className="text-xs font-bold text-slate-400 uppercase">Área Total Painéis</p><p className="text-xl font-bold text-slate-800">{totalPanelAreaM2.toFixed(1)} m²</p></div><div><p className="text-xs font-bold text-slate-400 uppercase">Área Disponível</p><p className="text-xl font-bold text-slate-800">{totalRoofAreaM2.toFixed(1)} m²</p></div></div></div></div>
+                <div className="flex gap-6 border p-6 rounded-xl bg-slate-50 shadow-sm items-start"><div className="w-16 h-16 bg-yellow-100 rounded-2xl flex items-center justify-center shrink-0 text-yellow-600"><Zap size={32} /></div><div className="flex-1"><h3 className="font-bold text-lg text-slate-800 mb-1">Inversor Solar</h3><p className="text-yellow-600 font-medium mb-3">{inverterCount}x {inverter?.manufacturer} {inverter?.model}</p><div className="grid grid-cols-2 gap-y-2 text-sm text-slate-600"><p>Potência AC: <strong>{inverter?.maxPowerKw} kW</strong></p><p>MPPTs: <strong>{inverter?.numMppts}</strong></p><p>Fases: <strong>{inverter?.phases === 3 ? 'Trifásico' : 'Monofásico'}</strong></p><p>Área Parede: <strong>{totalInvAreaM2.toFixed(2)} m²</strong></p></div></div></div>
+                {battery && (<div className="flex gap-6 border p-6 rounded-xl bg-slate-50 shadow-sm items-start"><div className="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center shrink-0 text-green-600"><Battery size={32} /></div><div className="flex-1"><h3 className="font-bold text-lg text-slate-800 mb-1">Baterias de Lítio</h3><p className="text-green-600 font-medium mb-3">{project.systemConfig.batteryCount||1}x {battery.manufacturer} {battery.model}</p><div className="grid grid-cols-2 gap-y-2 text-sm text-slate-600"><p>Capacidade Total: <strong>{(battery.capacityKwh * (project.systemConfig.batteryCount||1)).toFixed(1)} kWh</strong></p><p>Tecnologia: <strong>LiFePO4</strong></p><p>Potência Descarga: <strong>{battery.maxDischargeKw} kW</strong></p><p>Área Implantação: <strong>{totalBatAreaM2.toFixed(2)} m²</strong></p></div></div></div>)}
             </div>
         </ReportPage>
 
+        {/* --- PAGE 5A: COBERTURA & PRODUTIVIDADE (NEW) --- */}
+        <ReportPage title="Análise da Cobertura e Produtividade" number="5A" icon={Layout} analysisText={generateRoofAnalysisText(project, sim, totalPanelAreaM2)}>
+            <div className="grid grid-cols-3 gap-6 mb-8">
+                <div className="bg-slate-50 p-4 rounded border border-slate-200 text-center"><p className="text-xs text-slate-500 uppercase font-bold">Área de Captação</p><p className="text-2xl font-bold text-slate-800">{totalPanelAreaM2.toFixed(1)} <span className="text-sm font-normal">m²</span></p></div>
+                <div className="bg-slate-50 p-4 rounded border border-slate-200 text-center"><p className="text-xs text-slate-500 uppercase font-bold">Potência Instalada</p><p className="text-2xl font-bold text-blue-700">{installedPowerKw.toFixed(2)} <span className="text-sm font-normal">kWp</span></p></div>
+                <div className="bg-slate-50 p-4 rounded border border-slate-200 text-center"><p className="text-xs text-slate-500 uppercase font-bold">Produtividade Real</p><p className="text-2xl font-bold text-green-600">{sim ? Math.round(sim.totalProductionKwh / installedPowerKw) : 0} <span className="text-sm font-normal">kWh/kWp</span></p></div>
+            </div>
+            <div className="bg-white rounded border overflow-hidden mb-8">
+                <div className="bg-slate-100 p-3 border-b"><h4 className="font-bold text-slate-700 text-sm">Geometria das Superfícies</h4></div>
+                <table className="w-full text-sm text-center">
+                    <thead className="bg-gray-50 text-gray-600 font-bold text-xs uppercase"><tr><th className="p-3 text-left">Superfície</th><th className="p-3">Painéis</th><th className="p-3">Azimute</th><th className="p-3">Inclinação</th><th className="p-3">Área (m²)</th></tr></thead>
+                    <tbody className="divide-y">{project.roofSegments.map((seg, idx) => (<tr key={seg.id}><td className="p-3 text-left font-medium text-blue-900">Cobertura {idx + 1} ({seg.id.substring(0,4)})</td><td className="p-3">{seg.panelsCount}</td><td className="p-3">{seg.azimuth}°</td><td className="p-3">{seg.tilt}°</td><td className="p-3">{(seg.panelsCount * singlePanelAreaM2).toFixed(1)}</td></tr>))}</tbody>
+                </table>
+            </div>
+            {sim && (
+                <div className="grid grid-cols-2 gap-8 items-center border rounded p-6 bg-slate-50">
+                    <div>
+                        <h4 className="font-bold text-slate-700 mb-4">Impacto do Sombreamento e Perdas</h4>
+                        <div className="space-y-4">
+                            <div><div className="flex justify-between text-sm mb-1"><span className="font-medium text-gray-600">Produtividade Máxima Teórica</span><span className="font-bold text-gray-800">{Math.round(sim.totalProductionKwh + (sim.totalShadingLossKwh||0)).toLocaleString()} kWh</span></div><div className="w-full bg-gray-200 rounded-full h-2.5"><div className="bg-blue-300 h-2.5 rounded-full" style={{width: '100%'}}></div></div></div>
+                            <div><div className="flex justify-between text-sm mb-1"><span className="font-medium text-gray-600 flex items-center gap-2"><AlertTriangle size={12} className="text-orange-500"/> Perdas por Sombra</span><span className="font-bold text-orange-600">-{Math.round(sim.totalShadingLossKwh || 0).toLocaleString()} kWh</span></div><div className="w-full bg-gray-200 rounded-full h-2.5"><div className="bg-orange-400 h-2.5 rounded-full" style={{width: `${sim.shadingLossPercent || 0}%`}}></div></div><p className="text-xs text-right text-orange-600 mt-1">Impacto: {(sim.shadingLossPercent || 0).toFixed(1)}%</p></div>
+                            <div><div className="flex justify-between text-sm mb-1"><span className="font-bold text-green-700">Produção Real Estimada</span><span className="font-bold text-green-700">{Math.round(sim.totalProductionKwh).toLocaleString()} kWh</span></div><div className="w-full bg-gray-200 rounded-full h-2.5"><div className="bg-green-600 h-2.5 rounded-full" style={{width: `${100 - (sim.shadingLossPercent || 0)}%`}}></div></div></div>
+                        </div>
+                    </div>
+                    <div className="h-48"><ResponsiveContainer width="100%" height="100%"><BarChart layout="vertical" data={[{ name: 'Máxima', val: Math.round(sim.totalProductionKwh + (sim.totalShadingLossKwh||0)) }, { name: 'Real', val: Math.round(sim.totalProductionKwh) }]}><CartesianGrid strokeDasharray="3 3" horizontal={false} /><XAxis type="number" fontSize={10} hide /><YAxis dataKey="name" type="category" fontSize={12} width={60} tickLine={false} axisLine={false}/><Tooltip cursor={{fill: 'transparent'}} /><Bar dataKey="val" fill="#3b82f6" radius={[0, 4, 4, 0]} barSize={30}>{[ { name: 'Máxima', val: 0 }, { name: 'Real', val: 0 } ].map((entry, index) => (<Cell key={`cell-${index}`} fill={index === 0 ? '#93c5fd' : '#16a34a'} />))}</Bar></BarChart></ResponsiveContainer></div>
+                </div>
+            )}
+        </ReportPage>
+
         {/* --- PAGE 6: ELÉTRICO 1 - DIAGRAMA --- */}
-        <ReportPage title="Diagrama Elétrico (Unifilar)" number="4A" icon={Zap} analysisText={null}>
+        <ReportPage title="Diagrama Elétrico (Unifilar)" number="6" icon={Zap} analysisText={null}>
              <div className="border border-slate-200 rounded-lg bg-slate-50/50 p-6 flex justify-center items-center h-[200mm]">
                  <svg width={svgWidth} height={Math.max(400, (elec.strings.length * 60) + 120)} className="bg-white shadow-sm border rounded scale-90 origin-top">
-                      <defs>
-                          <marker id="repArrow" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
-                              <path d="M0,0 L0,6 L6,3 z" fill="#64748b" />
-                          </marker>
-                      </defs>
-                      {/* Strings */}
+                      <defs><marker id="repArrow" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L0,6 L6,3 z" fill="#64748b" /></marker></defs>
                       {elec.strings.map((str, idx) => {
                           const y = startY + (idx * 60);
                           return (
@@ -753,313 +605,103 @@ export const ReportView: React.FC<ReportViewProps> = ({ project }) => {
                               </g>
                           )
                       })}
-                      {/* Combiner */}
-                      <g transform={`translate(${startX+120}, ${startY-10})`}>
-                          <rect x="0" y="0" width="60" height={(elec.strings.length * 60) + 20} rx="4" fill="none" stroke="#94a3b8" strokeDasharray="4,2" />
-                          <text x="30" y="-5" textAnchor="middle" fontSize="10" fontWeight="bold" fill="#475569">Q. DC</text>
-                          {elec.strings.map((_, idx) => (
-                              <g key={idx}>
-                                   <rect x="20" y={idx*60 + 20} width="20" height="10" fill="#ef4444" rx="2" />
-                                   <text x="30" y={idx*60 + 28} textAnchor="middle" fontSize="7" fill="white">{elec.protection.dcFuseA}A</text>
-                              </g>
-                          ))}
-                      </g>
-                      {/* Inverter Lines */}
-                      {elec.strings.map((_, idx) => {
-                          const y = startY + (idx * 60) + 15;
-                          const midY = startY + ((elec.strings.length - 1) * 30) + 15;
-                          return <path key={idx} d={`M${startX+180},${y} L${startX+220},${y} L${startX+220},${midY} L${startX+250},${midY}`} fill="none" stroke="#334155" />
-                      })}
-                      {/* Inverter Box */}
-                      <g transform={`translate(${startX+250}, ${startY + ((elec.strings.length - 1) * 30)})`}>
-                          <rect x="0" y="0" width="80" height="50" fill="#fef9c3" stroke="#eab308" strokeWidth="2" rx="4" />
-                          <text x="40" y="20" textAnchor="middle" fontSize="10" fontWeight="bold" fill="#854d0e">INV</text>
-                          <text x="40" y="35" textAnchor="middle" fontSize="8" fill="#854d0e">{inverterCount}x {inverter?.model}</text>
-                      </g>
-                      {/* AC Side */}
-                      <line x1={startX+330} y1={startY+((elec.strings.length-1)*30)+25} x2={startX+400} y2={startY+((elec.strings.length-1)*30)+25} stroke="#334155" />
-                      <text x={startX+365} y={startY+((elec.strings.length-1)*30)+20} textAnchor="middle" fontSize="8" fill="#64748b">{elec.cables.acMm2}mm²</text>
-                      {/* AC Box */}
-                      <g transform={`translate(${startX+400}, ${startY + ((elec.strings.length - 1) * 30)})`}>
-                          <rect x="0" y="0" width="40" height="50" fill="none" stroke="#94a3b8" strokeDasharray="4,2" />
-                          <text x="20" y="-5" textAnchor="middle" fontSize="10" fontWeight="bold" fill="#475569">Q. AC</text>
-                          <rect x="10" y="15" width="20" height="20" fill="none" stroke="#2563eb" />
-                          <text x="20" y="45" textAnchor="middle" fontSize="8" fill="#2563eb" fontWeight="bold">{elec.protection.acBreakerA}A</text>
-                      </g>
-                      {/* Grid */}
-                      <line x1={startX+440} y1={startY+((elec.strings.length-1)*30)+25} x2={startX+500} y2={startY+((elec.strings.length-1)*30)+25} stroke="#334155" markerEnd="url(#repArrow)" />
-                      <text x="520" y={startY+((elec.strings.length-1)*30)+28} fontSize="10" fontWeight="bold">REDE</text>
+                      <g transform={`translate(${startX+120}, ${startY-10})`}><rect x="0" y="0" width="60" height={(elec.strings.length * 60) + 20} rx="4" fill="none" stroke="#94a3b8" strokeDasharray="4,2" /><text x="30" y="-5" textAnchor="middle" fontSize="10" fontWeight="bold" fill="#475569">Q. DC</text>{elec.strings.map((_, idx) => (<g key={idx}><rect x="20" y={idx*60 + 20} width="20" height="10" fill="#ef4444" rx="2" /><text x="30" y={idx*60 + 28} textAnchor="middle" fontSize="7" fill="white">{elec.protection.dcFuseA}A</text></g>))}</g>
+                      {elec.strings.map((_, idx) => {const y = startY + (idx * 60) + 15; const midY = startY + ((elec.strings.length - 1) * 30) + 15; return <path key={idx} d={`M${startX+180},${y} L${startX+220},${y} L${startX+220},${midY} L${startX+250},${midY}`} fill="none" stroke="#334155" />})}
+                      <g transform={`translate(${startX+250}, ${startY + ((elec.strings.length - 1) * 30)})`}><rect x="0" y="0" width="80" height="50" fill="#fef9c3" stroke="#eab308" strokeWidth="2" rx="4" /><text x="40" y="20" textAnchor="middle" fontSize="10" fontWeight="bold" fill="#854d0e">INV</text><text x="40" y="35" textAnchor="middle" fontSize="8" fill="#854d0e">{inverterCount}x {inverter?.model}</text></g>
+                      <line x1={startX+330} y1={startY+((elec.strings.length-1)*30)+25} x2={startX+400} y2={startY+((elec.strings.length-1)*30)+25} stroke="#334155" /><text x={startX+365} y={startY+((elec.strings.length-1)*30)+20} textAnchor="middle" fontSize="8" fill="#64748b">{elec.cables.acMm2}mm²</text>
+                      <g transform={`translate(${startX+400}, ${startY + ((elec.strings.length - 1) * 30)})`}><rect x="0" y="0" width="40" height="50" fill="none" stroke="#94a3b8" strokeDasharray="4,2" /><text x="20" y="-5" textAnchor="middle" fontSize="10" fontWeight="bold" fill="#475569">Q. AC</text><rect x="10" y="15" width="20" height="20" fill="none" stroke="#2563eb" /><text x="20" y="45" textAnchor="middle" fontSize="8" fill="#2563eb" fontWeight="bold">{elec.protection.acBreakerA}A</text></g>
+                      <line x1={startX+440} y1={startY+((elec.strings.length-1)*30)+25} x2={startX+500} y2={startY+((elec.strings.length-1)*30)+25} stroke="#334155" markerEnd="url(#repArrow)" /><text x="520" y={startY+((elec.strings.length-1)*30)+28} fontSize="10" fontWeight="bold">REDE</text>
                  </svg>
             </div>
         </ReportPage>
 
         {/* --- PAGE 7: ELÉTRICO 2 - TABELA --- */}
-        <ReportPage title="Matriz de Strings" number="4B" icon={Zap} analysisText={generateElectricalText(elec, inverter)}>
+        <ReportPage title="Matriz de Strings" number="7" icon={Zap} analysisText={generateElectricalText(elec, inverter)}>
             <div className="overflow-hidden border rounded mb-8">
                 <table className="w-full text-xs text-center border-collapse">
-                    <thead className="bg-slate-100 font-bold text-slate-600">
-                        <tr>
-                            <th className="p-3 text-left">MPPT</th>
-                            <th className="p-3">Strings</th>
-                            <th className="p-3">Módulos</th>
-                            <th className="p-3">Voc (-10°C)</th>
-                            <th className="p-3">Isc Total</th>
-                            <th className="p-3">Estado</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y">
-                        {elec.strings.map((s, i) => (
-                            <tr key={i}>
-                                <td className="p-3 text-left font-bold text-blue-800">MPPT {s.mpptId}</td>
-                                <td className="p-3">{s.numStrings}</td>
-                                <td className="p-3">{s.panelsPerString}</td>
-                                <td className="p-3">{s.vocString.toFixed(0)} V</td>
-                                <td className="p-3">{s.iscString.toFixed(1)} A</td>
-                                <td className="p-3 text-green-600 font-bold">OK</td>
-                            </tr>
-                        ))}
-                    </tbody>
+                    <thead className="bg-slate-100 font-bold text-slate-600"><tr><th className="p-3 text-left">MPPT</th><th className="p-3">Strings</th><th className="p-3">Módulos</th><th className="p-3">Voc (-10°C)</th><th className="p-3">Isc Total</th><th className="p-3">Estado</th></tr></thead>
+                    <tbody className="divide-y">{elec.strings.map((s, i) => (<tr key={i}><td className="p-3 text-left font-bold text-blue-800">MPPT {s.mpptId}</td><td className="p-3">{s.numStrings}</td><td className="p-3">{s.panelsPerString}</td><td className="p-3">{s.vocString.toFixed(0)} V</td><td className="p-3">{s.iscString.toFixed(1)} A</td><td className="p-3 text-green-600 font-bold">OK</td></tr>))}</tbody>
                 </table>
             </div>
-
             <div className="grid grid-cols-2 gap-6">
-                <div className="bg-slate-50 p-4 rounded border">
-                    <h4 className="font-bold text-slate-700 mb-2 border-b pb-1">Cablagem DC</h4>
-                    <p className="text-sm flex justify-between"><span>Secção:</span> <strong>{elec.cables.dcStringMm2} mm²</strong></p>
-                    <p className="text-sm flex justify-between"><span>Fusível:</span> <strong>{elec.protection.dcFuseA} A</strong></p>
-                </div>
-                <div className="bg-slate-50 p-4 rounded border">
-                    <h4 className="font-bold text-slate-700 mb-2 border-b pb-1">Cablagem AC</h4>
-                    <p className="text-sm flex justify-between"><span>Secção:</span> <strong>{elec.cables.acMm2} mm²</strong></p>
-                    <p className="text-sm flex justify-between"><span>Disjuntor:</span> <strong>{elec.protection.acBreakerA} A</strong></p>
-                </div>
+                <div className="bg-slate-50 p-4 rounded border"><h4 className="font-bold text-slate-700 mb-2 border-b pb-1">Cablagem DC</h4><p className="text-sm flex justify-between"><span>Secção:</span> <strong>{elec.cables.dcStringMm2} mm²</strong></p><p className="text-sm flex justify-between"><span>Fusível:</span> <strong>{elec.protection.dcFuseA} A</strong></p></div>
+                <div className="bg-slate-50 p-4 rounded border"><h4 className="font-bold text-slate-700 mb-2 border-b pb-1">Cablagem AC</h4><p className="text-sm flex justify-between"><span>Secção:</span> <strong>{elec.cables.acMm2} mm²</strong></p><p className="text-sm flex justify-between"><span>Disjuntor:</span> <strong>{elec.protection.acBreakerA} A</strong></p></div>
             </div>
         </ReportPage>
 
-        {/* --- PAGE 8: SIMULAÇÃO --- */}
-        <ReportPage title="Resultados da Simulação" number="5" icon={TrendingUp} analysisText={generateSimulationText(sim)}>
+        {/* --- PAGE 8 (NEW 4C): MONITORIZAÇÃO --- */}
+        <ReportPage title="Esquema de Monitorização e Balanço" number="8" icon={Activity} analysisText={generateMonitoringSchemeText(sim)}>
+            <div className="flex justify-center items-center h-[200mm] w-full">
+                {sim ? (
+                <div className="relative w-[700px] h-[500px] border border-slate-200 rounded-xl bg-slate-50 shadow-sm p-4">
+                    <svg viewBox="0 0 700 500" className="absolute top-0 left-0 w-full h-full z-0">
+                        <line x1="350" y1="80" x2="350" y2="220" stroke="#eab308" strokeWidth="4" />
+                        <line x1="350" y1="280" x2="350" y2="400" stroke="#3b82f6" strokeWidth="4" />
+                        <line x1="320" y1="250" x2="150" y2="250" stroke={battery ? "#22c55e" : "#e2e8f0"} strokeWidth="4" strokeDasharray={battery?"":"5,5"} />
+                        <line x1="380" y1="250" x2="550" y2="250" stroke="#ef4444" strokeWidth="4" />
+                        <circle cx="350" cy="150" r="3" fill="#eab308" /><circle cx="350" cy="340" r="3" fill="#3b82f6" />
+                    </svg>
+                    <div className="absolute top-4 left-1/2 -translate-x-1/2 flex flex-col items-center z-10"><div className="bg-white border-2 border-yellow-400 p-3 rounded-xl shadow text-center min-w-[140px]"><div className="flex justify-center mb-1 text-yellow-500"><Sun size={24}/></div><p className="font-bold text-slate-800 text-sm">Campo Solar</p><p className="text-xs text-slate-500">{installedPowerKw.toFixed(2)} kWp</p><div className="mt-2 pt-2 border-t border-yellow-100"><p className="text-[10px] uppercase font-bold text-yellow-700">Produção Anual</p><p className="font-bold text-lg text-yellow-600">{Math.round(sim.totalProductionKwh).toLocaleString()} kWh</p></div></div></div>
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20"><div className="bg-slate-800 text-white p-4 rounded-lg shadow-lg border-4 border-slate-600 text-center w-40"><Zap size={24} className="mx-auto mb-2 text-yellow-400"/><p className="font-bold text-sm">Inversor Híbrido</p><p className="text-xs text-slate-300">{totalInverterPowerKw.toFixed(1)} kW AC</p></div></div>
+                    <div className="absolute top-1/2 left-8 -translate-y-1/2 z-10"><div className={`bg-white border-2 ${battery ? 'border-green-500' : 'border-gray-200 opacity-50'} p-3 rounded-xl shadow text-center min-w-[140px]`}><div className="flex justify-center mb-1 text-green-600"><Battery size={24}/></div><p className="font-bold text-slate-800 text-sm">Armazenamento</p><p className="text-xs text-slate-500">{battery ? totalBatteryCapacityKwh.toFixed(1) : 0} kWh</p>{battery && (<div className="mt-2 pt-2 border-t border-green-100 text-left space-y-1"><div><p className="text-[9px] uppercase font-bold text-green-700">Carga</p><p className="font-bold text-sm text-slate-700">{Math.round(batteryAnnualFlow.charge).toLocaleString()} kWh</p></div><div><p className="text-[9px] uppercase font-bold text-red-700">Descarga</p><p className="font-bold text-sm text-slate-700">{Math.round(batteryAnnualFlow.discharge).toLocaleString()} kWh</p></div></div>)}</div></div>
+                    <div className="absolute top-1/2 right-8 -translate-y-1/2 z-10"><div className="bg-white border-2 border-red-400 p-3 rounded-xl shadow text-center min-w-[140px]"><div className="flex justify-center mb-1 text-red-500"><Activity size={24}/></div><p className="font-bold text-slate-800 text-sm">Rede Pública</p><div className="mt-2 pt-2 border-t border-red-100 text-left space-y-1"><div><p className="text-[9px] uppercase font-bold text-red-700">Importação</p><p className="font-bold text-sm text-slate-700">{Math.round(sim.totalImportKwh).toLocaleString()} kWh</p></div><div><p className="text-[9px] uppercase font-bold text-green-700">Injeção</p><p className="font-bold text-sm text-slate-700">{Math.round(sim.totalExportKwh).toLocaleString()} kWh</p></div></div></div></div>
+                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex flex-col items-center z-10"><div className="bg-white border-2 border-blue-400 p-3 rounded-xl shadow text-center min-w-[140px]"><div className="flex justify-center mb-1 text-blue-500"><BarChart3 size={24}/></div><p className="font-bold text-slate-800 text-sm">Consumo Edifício</p><p className="text-xs text-slate-500">Perfil: {project.loadProfile.profileName || 'Custom'}</p><div className="mt-2 pt-2 border-t border-blue-100"><p className="text-[10px] uppercase font-bold text-blue-700">Energia Consumida</p><p className="font-bold text-lg text-blue-600">{Math.round(sim.totalLoadKwh).toLocaleString()} kWh</p></div></div></div>
+                </div>
+                ) : <div className="text-center text-gray-400 italic border-dashed border-2 rounded p-10 w-full">Simulação não executada.</div>}
+            </div>
+        </ReportPage>
+
+        {/* --- PAGE 9: RESULTADOS SIMULAÇÃO --- */}
+        <ReportPage title="Resultados da Simulação" number="9" icon={TrendingUp} analysisText={generateSimulationText(sim)}>
             {sim ? (
                 <>
                 <div className="grid grid-cols-2 gap-6 mb-8">
-                     <div className="bg-yellow-50 p-6 rounded-xl border border-yellow-200 text-center">
-                         <p className="text-xs font-bold text-yellow-700 uppercase mb-2">Produção Total</p>
-                         <p className="text-3xl font-extrabold text-slate-800">{Math.round(sim.totalProductionKwh).toLocaleString()} <span className="text-sm font-normal text-slate-500">kWh</span></p>
-                     </div>
-                     <div className="bg-green-50 p-6 rounded-xl border border-green-200 text-center">
-                         <p className="text-xs font-bold text-green-700 uppercase mb-2">Autoconsumo Direto</p>
-                         <p className="text-3xl font-extrabold text-slate-800">
-                             {(sim.selfConsumptionRatio*100).toFixed(1)} <span className="text-sm font-normal text-slate-500">%</span>
-                         </p>
-                         <p className="text-sm font-medium text-green-800 mt-1">{Math.round(selfConsumedKwh).toLocaleString()} kWh</p>
-                     </div>
-                     <div className="bg-blue-50 p-6 rounded-xl border border-blue-200 text-center">
-                         <p className="text-xs font-bold text-blue-700 uppercase mb-2">Autonomia (Independência)</p>
-                         <p className="text-3xl font-extrabold text-slate-800">{(sim.autonomyRatio*100).toFixed(1)} <span className="text-sm font-normal text-slate-500">%</span></p>
-                         <p className="text-sm font-medium text-blue-800 mt-1">{Math.round(selfSufficiencyKwh).toLocaleString()} kWh</p>
-                     </div>
-                     <div className="bg-orange-50 p-6 rounded-xl border border-orange-200 text-center">
-                         <p className="text-xs font-bold text-orange-700 uppercase mb-2">Injeção na Rede</p>
-                         <p className="text-3xl font-extrabold text-slate-800">{(injectionRatio*100).toFixed(1)} <span className="text-sm font-normal text-slate-500">%</span></p>
-                         <p className="text-sm font-medium text-orange-800 mt-1">{Math.round(sim.totalExportKwh).toLocaleString()} kWh</p>
-                     </div>
+                     <div className="bg-yellow-50 p-6 rounded-xl border border-yellow-200 text-center"><p className="text-xs font-bold text-yellow-700 uppercase mb-2">Produção Total</p><p className="text-3xl font-extrabold text-slate-800">{Math.round(sim.totalProductionKwh).toLocaleString()} <span className="text-sm font-normal text-slate-500">kWh</span></p></div>
+                     <div className="bg-green-50 p-6 rounded-xl border border-green-200 text-center"><p className="text-xs font-bold text-green-700 uppercase mb-2">Autoconsumo Direto</p><p className="text-3xl font-extrabold text-slate-800">{(sim.selfConsumptionRatio*100).toFixed(1)} <span className="text-sm font-normal text-slate-500">%</span></p><p className="text-sm font-medium text-green-800 mt-1">{Math.round(selfConsumedKwh).toLocaleString()} kWh</p></div>
+                     <div className="bg-blue-50 p-6 rounded-xl border border-blue-200 text-center"><p className="text-xs font-bold text-blue-700 uppercase mb-2">Autonomia (Independência)</p><p className="text-3xl font-extrabold text-slate-800">{(sim.autonomyRatio*100).toFixed(1)} <span className="text-sm font-normal text-slate-500">%</span></p><p className="text-sm font-medium text-blue-800 mt-1">{Math.round(selfSufficiencyKwh).toLocaleString()} kWh</p></div>
+                     <div className="bg-orange-50 p-6 rounded-xl border border-orange-200 text-center"><p className="text-xs font-bold text-orange-700 uppercase mb-2">Injeção na Rede</p><p className="text-3xl font-extrabold text-slate-800">{(injectionRatio*100).toFixed(1)} <span className="text-sm font-normal text-slate-500">%</span></p><p className="text-sm font-medium text-orange-800 mt-1">{Math.round(sim.totalExportKwh).toLocaleString()} kWh</p></div>
                 </div>
-
                 <div className="h-96 w-full border p-6 rounded-xl bg-white shadow-sm">
                      <h4 className="text-center font-bold text-slate-600 mb-6">Balanço Energético Mensal (kWh)</h4>
-                     <ResponsiveContainer width="100%" height="100%">
-                         <BarChart data={simMonthlyData} barGap={0}>
-                             <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                             <XAxis dataKey="name" fontSize={12} interval={0} tickLine={false} axisLine={false} />
-                             <YAxis fontSize={12} tickLine={false} axisLine={false} />
-                             <Legend wrapperStyle={{paddingTop: '20px'}} />
-                             <Tooltip cursor={{fill: 'transparent'}} />
-                             <Bar dataKey="Produção" fill="#eab308" radius={[4,4,0,0]} maxBarSize={40} />
-                             <Bar dataKey="Consumo" fill="#94a3b8" radius={[4,4,0,0]} maxBarSize={40} />
-                             <Bar dataKey="Autoconsumo" fill="#22c55e" radius={[4,4,0,0]} maxBarSize={40} />
-                         </BarChart>
-                     </ResponsiveContainer>
+                     <ResponsiveContainer width="100%" height="100%"><BarChart data={simMonthlyData} barGap={0}><CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="name" fontSize={12} interval={0} tickLine={false} axisLine={false} /><YAxis fontSize={12} tickLine={false} axisLine={false} /><Legend wrapperStyle={{paddingTop: '20px'}} /><Tooltip cursor={{fill: 'transparent'}} /><Bar dataKey="Produção" fill="#eab308" radius={[4,4,0,0]} maxBarSize={40} /><Bar dataKey="Consumo" fill="#94a3b8" radius={[4,4,0,0]} maxBarSize={40} /><Bar dataKey="Autoconsumo" fill="#22c55e" radius={[4,4,0,0]} maxBarSize={40} /></BarChart></ResponsiveContainer>
                 </div>
                 </>
             ) : <div className="text-center p-20 text-slate-400 italic border rounded">Simulação não executada.</div>}
         </ReportPage>
 
-        {/* --- PAGE 9: FONTES DE ENERGIA --- */}
-        <ReportPage title="Análise de Fontes de Energia" number="5B" icon={BarChart3} analysisText={generateEnergySourcesText(annualSources)}>
+        {/* --- PAGE 10: FONTES DE ENERGIA --- */}
+        <ReportPage title="Análise de Fontes de Energia" number="10" icon={BarChart3} analysisText={generateEnergySourcesText(annualSources)}>
             {sim ? (
             <div className="space-y-8">
-                {/* Annual Summary Table */}
-                <div className="bg-white rounded-lg border overflow-hidden">
-                    <div className="bg-slate-100 p-4 border-b">
-                        <h4 className="font-bold text-slate-700">Quadro Resumo de Consumo (Anual)</h4>
-                    </div>
-                    <table className="w-full text-sm text-left">
-                        <thead>
-                            <tr className="bg-gray-50 text-gray-600">
-                                <th className="p-4 font-semibold">Fonte de Energia</th>
-                                <th className="p-4 text-right font-semibold">Energia (kWh)</th>
-                                <th className="p-4 text-right font-semibold">% do Total</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y">
-                            <tr>
-                                <td className="p-4 flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-green-500"></div> Fotovoltaico Direto</td>
-                                <td className="p-4 text-right font-bold text-slate-700">{Math.round(annualSources.direct).toLocaleString()}</td>
-                                <td className="p-4 text-right text-slate-500">{((annualSources.direct / annualSources.total)*100).toFixed(1)}%</td>
-                            </tr>
-                            <tr>
-                                <td className="p-4 flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-blue-500"></div> Baterias (Descarga)</td>
-                                <td className="p-4 text-right font-bold text-slate-700">{Math.round(annualSources.battery).toLocaleString()}</td>
-                                <td className="p-4 text-right text-slate-500">{((annualSources.battery / annualSources.total)*100).toFixed(1)}%</td>
-                            </tr>
-                            <tr>
-                                <td className="p-4 flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-red-500"></div> Rede (Importação)</td>
-                                <td className="p-4 text-right font-bold text-slate-700">{Math.round(annualSources.grid).toLocaleString()}</td>
-                                <td className="p-4 text-right text-slate-500">{((annualSources.grid / annualSources.total)*100).toFixed(1)}%</td>
-                            </tr>
-                            <tr className="bg-gray-50 font-bold border-t-2 border-gray-300">
-                                <td className="p-4">TOTAL CONSUMO</td>
-                                <td className="p-4 text-right">{Math.round(annualSources.total).toLocaleString()}</td>
-                                <td className="p-4 text-right">100%</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-
-                {/* Monthly Stacked Chart */}
-                <div className="h-96 w-full border p-6 rounded-xl bg-white shadow-sm">
-                        <h4 className="text-center font-bold text-slate-600 mb-6">Origem do Consumo Mensal (kWh)</h4>
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={monthlySourcesData}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                <XAxis dataKey="name" fontSize={12} interval={0} tickLine={false} axisLine={false} />
-                                <YAxis fontSize={12} tickLine={false} axisLine={false} />
-                                <Tooltip cursor={{fill: 'transparent'}} />
-                                <Legend wrapperStyle={{paddingTop: '20px'}} />
-                                <Bar dataKey="Direct" name="Solar Direto" stackId="a" fill="#22c55e" />
-                                <Bar dataKey="Battery" name="Bateria" stackId="a" fill="#3b82f6" />
-                                <Bar dataKey="Grid" name="Rede" stackId="a" fill="#ef4444" />
-                            </BarChart>
-                        </ResponsiveContainer>
-                </div>
+                <div className="bg-white rounded-lg border overflow-hidden"><div className="bg-slate-100 p-4 border-b"><h4 className="font-bold text-slate-700">Quadro Resumo de Consumo (Anual)</h4></div><table className="w-full text-sm text-left"><thead><tr className="bg-gray-50 text-gray-600"><th className="p-4 font-semibold">Fonte de Energia</th><th className="p-4 text-right font-semibold">Energia (kWh)</th><th className="p-4 text-right font-semibold">% do Total</th></tr></thead><tbody className="divide-y"><tr><td className="p-4 flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-green-500"></div> Fotovoltaico Direto</td><td className="p-4 text-right font-bold text-slate-700">{Math.round(annualSources.direct).toLocaleString()}</td><td className="p-4 text-right text-slate-500">{((annualSources.direct / annualSources.total)*100).toFixed(1)}%</td></tr><tr><td className="p-4 flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-blue-500"></div> Baterias (Descarga)</td><td className="p-4 text-right font-bold text-slate-700">{Math.round(annualSources.battery).toLocaleString()}</td><td className="p-4 text-right text-slate-500">{((annualSources.battery / annualSources.total)*100).toFixed(1)}%</td></tr><tr><td className="p-4 flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-red-500"></div> Rede (Importação)</td><td className="p-4 text-right font-bold text-slate-700">{Math.round(annualSources.grid).toLocaleString()}</td><td className="p-4 text-right text-slate-500">{((annualSources.grid / annualSources.total)*100).toFixed(1)}%</td></tr><tr className="bg-gray-50 font-bold border-t-2 border-gray-300"><td className="p-4">TOTAL CONSUMO</td><td className="p-4 text-right">{Math.round(annualSources.total).toLocaleString()}</td><td className="p-4 text-right">100%</td></tr></tbody></table></div>
+                <div className="h-96 w-full border p-6 rounded-xl bg-white shadow-sm"><h4 className="text-center font-bold text-slate-600 mb-6">Origem do Consumo Mensal (kWh)</h4><ResponsiveContainer width="100%" height="100%"><BarChart data={monthlySourcesData}><CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="name" fontSize={12} interval={0} tickLine={false} axisLine={false} /><YAxis fontSize={12} tickLine={false} axisLine={false} /><Tooltip cursor={{fill: 'transparent'}} /><Legend wrapperStyle={{paddingTop: '20px'}} /><Bar dataKey="Direct" name="Solar Direto" stackId="a" fill="#22c55e" /><Bar dataKey="Battery" name="Bateria" stackId="a" fill="#3b82f6" /><Bar dataKey="Grid" name="Rede" stackId="a" fill="#ef4444" /></BarChart></ResponsiveContainer></div>
             </div>
             ) : <div className="text-center p-20 text-slate-400 italic">Simulação não executada.</div>}
         </ReportPage>
 
-        {/* --- PAGE 10: ORÇAMENTO --- */}
-        <ReportPage title="Orçamento Detalhado" number="6" icon={FileText} analysisText={generateBudgetText(totalBudget)}>
-             <table className="w-full text-sm border-collapse mb-8">
-                  <thead>
-                      <tr className="bg-slate-800 text-white">
-                          <th className="py-3 px-4 text-left rounded-tl-lg">Descrição</th>
-                          <th className="py-3 px-4 text-center">Qtd.</th>
-                          <th className="py-3 px-4 text-right">Preço Un.</th>
-                          <th className="py-3 px-4 text-right rounded-tr-lg">Total</th>
-                      </tr>
-                  </thead>
-                  <tbody>
-                      {['Modules', 'Inverter', 'Battery', 'Structure', 'Electrical', 'Labor', 'Services'].map(cat => {
-                          const items = budgetItems.filter(i => i.category === cat);
-                          if (items.length === 0) return null;
-                          return (
-                              <React.Fragment key={cat}>
-                                  <tr className="bg-slate-100 border-b border-white"><td colSpan={4} className="py-2 px-4 font-bold text-xs uppercase text-slate-500 tracking-wider">{cat}</td></tr>
-                                  {items.map((item, idx) => (
-                                      <tr key={idx} className="border-b border-slate-100 last:border-0">
-                                          <td className="py-3 px-4">{item.description}</td>
-                                          <td className="py-3 px-4 text-center font-medium text-slate-500">{item.quantity} {item.unit}</td>
-                                          <td className="py-3 px-4 text-right text-slate-600">{item.unitPrice.toLocaleString('pt-PT', {minimumFractionDigits: 2})}€</td>
-                                          <td className="py-3 px-4 text-right font-bold text-slate-700">{item.totalPrice.toLocaleString('pt-PT', {minimumFractionDigits: 2})}€</td>
-                                      </tr>
-                                  ))}
-                              </React.Fragment>
-                          )
-                      })}
-                  </tbody>
-             </table>
-             
-             <div className="flex justify-end">
-                 <div className="w-1/2 bg-slate-50 p-6 rounded-xl">
-                      <div className="flex justify-between mb-2 text-slate-600">
-                          <span>Subtotal</span>
-                          <span className="font-bold">{subtotal.toLocaleString('pt-PT', {style:'currency', currency:'EUR'})}</span>
-                      </div>
-                      <div className="flex justify-between mb-4 text-slate-600">
-                          <span>IVA (6%)</span>
-                          <span className="font-bold">{(subtotal * 0.06).toLocaleString('pt-PT', {style:'currency', currency:'EUR'})}</span>
-                      </div>
-                      <div className="flex justify-between pt-4 border-t border-slate-300 text-xl font-extrabold text-blue-900">
-                          <span>TOTAL</span>
-                          <span>{totalBudget.toLocaleString('pt-PT', {style:'currency', currency:'EUR'})}</span>
-                      </div>
-                 </div>
-             </div>
+        {/* --- PAGE 11: ORÇAMENTO --- */}
+        <ReportPage title="Orçamento Detalhado" number="11" icon={FileText} analysisText={generateBudgetText(totalBudget)}>
+             <table className="w-full text-sm border-collapse mb-8"><thead><tr className="bg-slate-800 text-white"><th className="py-3 px-4 text-left rounded-tl-lg">Descrição</th><th className="py-3 px-4 text-center">Qtd.</th><th className="py-3 px-4 text-right">Preço Un.</th><th className="py-3 px-4 text-right rounded-tr-lg">Total</th></tr></thead><tbody>{['Modules', 'Inverter', 'Battery', 'Structure', 'Electrical', 'Labor', 'Services'].map(cat => { const items = budgetItems.filter(i => i.category === cat); if (items.length === 0) return null; return (<React.Fragment key={cat}><tr className="bg-slate-100 border-b border-white"><td colSpan={4} className="py-2 px-4 font-bold text-xs uppercase text-slate-500 tracking-wider">{cat}</td></tr>{items.map((item, idx) => (<tr key={idx} className="border-b border-slate-100 last:border-0"><td className="py-3 px-4">{item.description}</td><td className="py-3 px-4 text-center font-medium text-slate-500">{item.quantity} {item.unit}</td><td className="py-3 px-4 text-right text-slate-600">{item.unitPrice.toLocaleString('pt-PT', {minimumFractionDigits: 2})}€</td><td className="py-3 px-4 text-right font-bold text-slate-700">{item.totalPrice.toLocaleString('pt-PT', {minimumFractionDigits: 2})}€</td></tr>))}</React.Fragment>)})}</tbody></table>
+             <div className="flex justify-end"><div className="w-1/2 bg-slate-50 p-6 rounded-xl"><div className="flex justify-between mb-2 text-slate-600"><span>Subtotal</span><span className="font-bold">{subtotal.toLocaleString('pt-PT', {style:'currency', currency:'EUR'})}</span></div><div className="flex justify-between mb-4 text-slate-600"><span>IVA (6%)</span><span className="font-bold">{(subtotal * 0.06).toLocaleString('pt-PT', {style:'currency', currency:'EUR'})}</span></div><div className="flex justify-between pt-4 border-t border-slate-300 text-xl font-extrabold text-blue-900"><span>TOTAL</span><span>{totalBudget.toLocaleString('pt-PT', {style:'currency', currency:'EUR'})}</span></div></div></div>
         </ReportPage>
 
-        {/* --- PAGE 11: FINANCEIRO --- */}
-        <ReportPage title="Análise Financeira" number="7" icon={ShieldCheck} analysisText={generateFinancialText(financials)}>
-             
+        {/* --- PAGE 12: FINANCEIRO --- */}
+        <ReportPage title="Análise Financeira" number="12" icon={ShieldCheck} analysisText={generateFinancialText(financials)}>
              <div className="grid grid-cols-3 gap-6 mb-8">
-                <div className="bg-green-50 p-4 rounded-xl border border-green-200 text-center">
-                    <p className="text-xs font-bold text-green-700 uppercase mb-2">Poupança Acumulada (15 Anos)</p>
-                    <p className="text-2xl font-extrabold text-slate-800">{financials.totalSavings15YearsEur.toLocaleString('pt-PT', {style:'currency', currency:'EUR', maximumFractionDigits:0})}</p>
-                </div>
-                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-center">
-                    <p className="text-xs font-bold text-slate-500 uppercase mb-2">Payback Estimado</p>
-                    <p className="text-2xl font-extrabold text-slate-800">{financials.paybackPeriodYears.toFixed(1)} <span className="text-sm font-normal text-slate-500">Anos</span></p>
-                </div>
-                <div className="bg-blue-50 p-4 rounded-xl border border-blue-200 text-center">
-                    <p className="text-xs font-bold text-blue-700 uppercase mb-2">ROI (Retorno)</p>
-                    <p className="text-2xl font-extrabold text-slate-800">{financials.roiPercent.toFixed(1)} <span className="text-sm font-normal text-slate-500">%</span></p>
-                </div>
+                <div className="bg-green-50 p-4 rounded-xl border border-green-200 text-center"><p className="text-xs font-bold text-green-700 uppercase mb-2">Poupança Acumulada (15 Anos)</p><p className="text-2xl font-extrabold text-slate-800">{financials.totalSavings15YearsEur.toLocaleString('pt-PT', {style:'currency', currency:'EUR', maximumFractionDigits:0})}</p></div>
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-center"><p className="text-xs font-bold text-slate-500 uppercase mb-2">Payback Estimado</p><p className="text-2xl font-extrabold text-slate-800">{financials.paybackPeriodYears.toFixed(1)} <span className="text-sm font-normal text-slate-500">Anos</span></p></div>
+                <div className="bg-blue-50 p-4 rounded-xl border border-blue-200 text-center"><p className="text-xs font-bold text-blue-700 uppercase mb-2">ROI (Retorno)</p><p className="text-2xl font-extrabold text-slate-800">{financials.roiPercent.toFixed(1)} <span className="text-sm font-normal text-slate-500">%</span></p></div>
             </div>
-
-             <div className="bg-white p-6 rounded-xl border shadow-sm mb-8">
-                 <h3 className="font-bold text-slate-800 mb-6 text-center">Fluxo de Caixa Acumulado (15 Anos)</h3>
-                 <div className="h-64">
-                     <ResponsiveContainer width="100%" height="100%">
-                         <BarChart data={financials.yearlyData}>
-                             <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                             <XAxis dataKey="year" fontSize={12} tickLine={false} axisLine={false} />
-                             <YAxis fontSize={12} tickLine={false} axisLine={false} />
-                             <Tooltip formatter={(value: number) => value.toLocaleString('pt-PT', {style:'currency', currency:'EUR'})} cursor={{fill: 'transparent'}} />
-                             <Bar dataKey="cumulativeCashflowEur" name="Cashflow Acumulado" fill="#22c55e" radius={[4, 4, 0, 0]} />
-                         </BarChart>
-                     </ResponsiveContainer>
-                 </div>
-             </div>
-
-             <div className="bg-blue-50 border border-blue-100 p-6 rounded-xl">
-                 <h4 className="font-bold text-blue-900 mb-4">Notas Técnicas Finais</h4>
-                 <ul className="list-disc pl-5 space-y-2 text-sm text-slate-700 text-justify">
-                     <li>Os valores apresentados são estimativas baseadas em simulação computacional avançada, considerando dados meteorológicos típicos.</li>
-                     <li>A produção real pode variar devido a condições atmosféricas anómalas, sujidade acumulada nos módulos ou sombreamentos não previstos.</li>
-                     <li>O cálculo financeiro assume a manutenção do quadro legislativo atual e as taxas de inflação energética configuradas no projeto.</li>
-                 </ul>
-             </div>
+             <div className="bg-white p-6 rounded-xl border shadow-sm mb-8"><h3 className="font-bold text-slate-800 mb-6 text-center">Fluxo de Caixa Acumulado (15 Anos)</h3><div className="h-64"><ResponsiveContainer width="100%" height="100%"><BarChart data={financials.yearlyData}><CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="year" fontSize={12} tickLine={false} axisLine={false} /><YAxis fontSize={12} tickLine={false} axisLine={false} /><Tooltip formatter={(value: number) => value.toLocaleString('pt-PT', {style:'currency', currency:'EUR'})} cursor={{fill: 'transparent'}} /><Bar dataKey="cumulativeCashflowEur" name="Cashflow Acumulado" fill="#22c55e" radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer></div></div>
+             <div className="bg-blue-50 border border-blue-100 p-6 rounded-xl"><h4 className="font-bold text-blue-900 mb-4">Notas Técnicas Finais</h4><ul className="list-disc pl-5 space-y-2 text-sm text-slate-700 text-justify"><li>Os valores apresentados são estimativas baseadas em simulação computacional avançada, considerando dados meteorológicos típicos.</li><li>A produção real pode variar devido a condições atmosféricas anómalas, sujidade acumulada nos módulos ou sombreamentos não previstos.</li><li>O cálculo financeiro assume a manutenção do quadro legislativo atual e as taxas de inflação energética configuradas no projeto.</li></ul></div>
         </ReportPage>
 
         {/* --- BACK COVER --- */}
         <div className="h-auto min-h-[297mm] print:h-screen print:min-h-0 print:overflow-hidden relative p-12 flex flex-col justify-center items-center bg-slate-900 text-white break-after-page print:shadow-none shadow-lg">
              <h1 className="text-4xl font-bold mb-12 tracking-wide text-white">Energia para o Futuro.</h1>
-             
              <div className="w-24 h-1 bg-blue-500 mb-12"></div>
-             
-             <div className="text-center space-y-6 text-slate-300">
-                 <div>
-                    <p className="text-2xl font-bold text-white mb-2">Koelho2000</p>
-                    <p className="font-light tracking-widest text-sm uppercase text-slate-400">Soluções de Engenharia</p>
-                 </div>
-                 
-                 <div className="pt-8 space-y-2 font-medium text-slate-200">
-                     <p>www.koelho2000.com</p>
-                     <p>+351 934 021 666</p>
-                     <p>koelho2000@gmail.com</p>
-                 </div>
-             </div>
-
-             <div className="absolute bottom-12 text-[10px] text-slate-600 uppercase tracking-widest">
-                 Relatório Gerado Automaticamente por K-PVPROSIM {APP_VERSION}
-             </div>
+             <div className="text-center space-y-6 text-slate-300"><div><p className="text-2xl font-bold text-white mb-2">Koelho2000</p><p className="font-light tracking-widest text-sm uppercase text-slate-400">Soluções de Engenharia</p></div><div className="pt-8 space-y-2 font-medium text-slate-200"><p>www.koelho2000.com</p><p>+351 934 021 666</p><p>koelho2000@gmail.com</p></div></div>
+             <div className="absolute bottom-12 text-[10px] text-slate-600 uppercase tracking-widest">Relatório Gerado Automaticamente por K-PVPROSIM {APP_VERSION}</div>
         </div>
 
         </div> {/* End Ref */}
@@ -1067,28 +709,10 @@ export const ReportView: React.FC<ReportViewProps> = ({ project }) => {
         {/* Floating Export Toolbar */}
         <div className="fixed bottom-8 right-8 print:hidden z-50 flex flex-col gap-3 items-end">
             <div className="bg-white p-2 rounded-lg shadow-xl border border-gray-200 flex flex-col gap-2">
-                <button 
-                    onClick={handleExportWord} 
-                    className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-blue-800 hover:bg-blue-50 rounded transition-colors w-full justify-end"
-                    title="Exportar para Word (Layout Simplificado)"
-                >
-                    Exportar Word (.doc) <FileType size={18} />
-                </button>
-                <button 
-                    onClick={handleExportHTML} 
-                    className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-orange-700 hover:bg-orange-50 rounded transition-colors w-full justify-end"
-                    title="Exportar HTML (Layout Original)"
-                >
-                    Exportar HTML <FileCode size={18} />
-                </button>
+                <button onClick={handleExportWord} className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-blue-800 hover:bg-blue-50 rounded transition-colors w-full justify-end" title="Exportar para Word (Layout Simplificado)">Exportar Word (.doc) <FileType size={18} /></button>
+                <button onClick={handleExportHTML} className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-orange-700 hover:bg-orange-50 rounded transition-colors w-full justify-end" title="Exportar HTML (Layout Original)">Exportar HTML <FileCode size={18} /></button>
             </div>
-            <button 
-                onClick={() => window.print()} 
-                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-4 rounded-full shadow-xl flex items-center gap-2 font-bold transition-transform hover:scale-105"
-                title="Imprimir ou Guardar como PDF"
-            >
-                <Printer /> Imprimir / PDF
-            </button>
+            <button onClick={() => window.print()} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-4 rounded-full shadow-xl flex items-center gap-2 font-bold transition-transform hover:scale-105" title="Imprimir ou Guardar como PDF"><Printer /> Imprimir / PDF</button>
         </div>
 
     </div>
