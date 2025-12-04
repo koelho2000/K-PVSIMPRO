@@ -144,6 +144,10 @@ export interface SimulationResult {
   selfConsumptionRatio: number; // 0-1
   autonomyRatio: number; // 0-1
   
+  // Autonomy Metrics
+  autonomousDaysCount: number;
+  maxAutonomousHoursStreak: number;
+  
   // Shading
   totalShadingLossKwh: number;
   shadingLossPercent: number;

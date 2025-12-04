@@ -1,3 +1,4 @@
+
 import { ProjectState, SimulationResult, ClimateData, SystemConfig, RoofSegment, SolarPanel, Inverter, Battery, Point } from "../types";
 import { PANELS_DB, INVERTERS_DB, BATTERIES_DB } from "../constants";
 
@@ -248,22 +249,10 @@ export const getSunPosition = (lat: number, dayOfYear: number, hour: number) => 
     if (hour > 12) thetaRad = 2 * Math.PI - thetaRad; // Afternoon fix
     
     // Convert to -180 (East) to +180 (West) convention for PV usually 0=South
-    // Standard solar azimuth: 0 = North, 180 = South.
-    // Our System: 0 = South, -90 = East, 90 = West.
-    // We need to shift.
-    
-    // Re-calc Azimuth simpler for South=0 convention:
-    // Azimuth = acos(...)
-    // Morning (H < 0): Azimuth is negative (East)
-    // Afternoon (H > 0): Azimuth is positive (West)
-    // Formula: sin(Az) = - cos(Dec) * sin(H) / cos(Alpha)
     
     const sinAz = -Math.cos(decRad) * Math.sin(hRad) / Math.cos(alphaRad);
     // Rough approx
     let azDeg = toDeg(Math.asin(Math.max(-1, Math.min(1, sinAz))));
-    
-    // Fix for when sun is behind east/west line (summer mornings/evenings)
-    // Not critical for simple estimation but good to have
     
     return {
         elevation: toDeg(alphaRad),
@@ -280,17 +269,11 @@ export const calculateIncidentRadiation = (
 ) => {
     if (sunElev <= 0) return 0;
 
-    // Diffuse Fraction Approximation (Liu & Jordan simplified)
-    // Higher elevation -> more direct. Lower -> more diffuse.
-    // very simplified:
     const diffuseFrac = 0.2 + 0.8 * (1 - Math.sin(toRad(sunElev)));
     
     const beamRad = ghi * (1 - diffuseFrac);
     const diffRad = ghi * diffuseFrac;
 
-    // Angle of Incidence (AOI)
-    // cos(AOI) = cos(alpha)sin(beta)cos(sunAz - panelAz) + sin(alpha)cos(beta)
-    // alpha = sun elevation, beta = panel tilt
     const alpha = toRad(sunElev);
     const beta = toRad(panelTilt);
     const azDiff = toRad(sunAz - panelAz);
@@ -298,23 +281,16 @@ export const calculateIncidentRadiation = (
     const cosAOI = Math.cos(alpha)*Math.sin(beta)*Math.cos(azDiff) + Math.sin(alpha)*Math.cos(beta);
     const aoi = Math.max(0, cosAOI);
 
-    // Total Plane of Array
-    // Direct Component + Isotropic Diffuse + Ground Reflect (ignore ground for now)
     const poa = (beamRad * aoi) + (diffRad * ((1 + Math.cos(beta))/2));
     
     return Math.max(0, poa);
 };
 
 export const estimateAnnualYield = (lat: number, tilt: number, azimuth: number): number => {
-    // Quick Simulation loop (every hour? or representative days?)
-    // Let's do Representative Days (1 per month) x 24h x 30
-    
     let totalYieldKwhKwp = 0;
     
     for (let m = 0; m < 12; m++) {
         const dayOfYear = m * 30 + 15;
-        // Approx GHI curve for that day (Peak) based on Lat
-        // Winter (m=0): low peak. Summer (m=6): high peak.
         const season = -Math.cos(2 * Math.PI * (dayOfYear + 10) / 365); // -1 to 1
         const peakRad = 0.5 + 0.5 * ((season + 1) / 2) * (1 - (Math.abs(lat-37)/90)); // kW/m2
         
@@ -322,8 +298,7 @@ export const estimateAnnualYield = (lat: number, tilt: number, azimuth: number):
         for (let h = 0; h < 24; h++) {
             const sun = getSunPosition(lat, dayOfYear, h);
             if (sun.elevation > 0) {
-                // Synthetic GHI for the hour
-                const hourPower = Math.max(0, Math.sin(Math.PI * (h - 6) / 12)); // 6am to 6pm
+                const hourPower = Math.max(0, Math.sin(Math.PI * (h - 6) / 12)); 
                 const ghi = peakRad * hourPower * 1000; // W/m2
                 
                 const poa = calculateIncidentRadiation(ghi, sun.elevation, sun.azimuth, tilt, azimuth);
@@ -357,10 +332,6 @@ export const calculateOptimizationCurves = (lat: number) => {
 };
 
 export const calculateRecommendedSpacing = (lat: number, tilt: number, azimuth: number, panelHeightMm: number) => {
-    // 1. Calculate Solar Position at Winter Solstice (Dec 21) at 10:00 AM (Worst case standard design)
-    // Hour Angle H = -30 degrees (2 hours before noon)
-    // Declination delta = -23.45 degrees
-    
     const latRad = toRad(lat);
     const decRad = toRad(-23.45);
     const hRad = toRad(-30); // 10:00 AM
@@ -402,14 +373,8 @@ export const calculateShadingFactor = (
     const sun = getSunPosition(lat, dayOfYear, hour);
     if (sun.elevation <= 0) return 0;
 
-    // Profile Angle (P)
-    // The angle of the sun projected onto the plane perpendicular to the rows
-    // tan(P) = tan(Alpha) / cos(SunAz - RowAz)
-    // Row Azimuth is segment.azimuth + 90 or -90.
-    // Easier: Projected Azimuth difference
-    
     const azDiff = Math.abs(sun.azimuth - segment.azimuth);
-    if (azDiff > 90) return 0; // Sun is behind the panels ("Backside"), no shading on front face (other than self) - actually sun behind means irradiance is 0 anyway.
+    if (azDiff > 90) return 0; // Sun behind
 
     const sunElevRad = toRad(sun.elevation);
     const azDiffRad = toRad(azDiff);
@@ -417,36 +382,16 @@ export const calculateShadingFactor = (
     const tanProfile = Math.tan(sunElevRad) / Math.cos(azDiffRad);
     const profileAngle = toDeg(Math.atan(tanProfile));
 
-    // Shadow Length (L_shadow) from top of row N to ground relative to Row N+1
-    // L_shadow = Height_diff / tan(Profile)
-    // Height_diff is vertical rise of panel = H * sin(Tilt)
-    
     const H = panelHeightMm / 1000;
     const tiltRad = toRad(segment.tilt);
     const heightRise = H * Math.sin(tiltRad);
     
     const shadowLen = heightRise / Math.tan(toRad(profileAngle));
     
-    // Distance between rows (D) = H * cos(Tilt) + Spacing
-    // We strictly use verticalSpacing as the GAP.
-    // Actually, "verticalSpacing" in UI usually means the Gap. 
-    // The relevant distance for shading is the Gap.
-    // If ShadowLen > Gap, we have shading.
-    
     const gap = segment.verticalSpacing;
     
     if (shadowLen > gap) {
-        // Overlap length on the panel surface
-        // Geometry: similar triangles or projection
-        // Simplified: The shadow creeps up the next panel.
-        // Shaded Fraction = (ShadowLen - Gap) / (H * cos(Tilt) ?? No, along the panel plane)
-        // Shaded Length on Panel = (ShadowLen - Gap) / cos(Tilt + Profile??) -> Complex.
-        
-        // Simple approx:
         const excessShadow = shadowLen - gap;
-        // Project excess shadow back onto panel plane
-        // roughly: excess * sin(Profile) / sin(Profile + Tilt)
-        
         const shadeFrac = Math.min(1, excessShadow / (H * Math.cos(tiltRad))); // Very Rough
         return shadeFrac;
     }
@@ -575,6 +520,28 @@ export const runSimulation = (project: ProjectState): SimulationResult => {
   const totalExport = sum(hourlyGridExport);
   const totalLoad = sum(hourlyLoad);
 
+  // --- Metrics: Autonomous Days & Streaks ---
+  let autonomousDaysCount = 0;
+  for (let d = 0; d < 365; d++) {
+      let dayImport = 0;
+      for (let h = 0; h < 24; h++) {
+          dayImport += hourlyGridImport[d*24 + h] || 0;
+      }
+      // Threshold: if import is extremely low, consider autonomous
+      if (dayImport < 0.05) autonomousDaysCount++;
+  }
+
+  let maxAutonomousHoursStreak = 0;
+  let currentStreak = 0;
+  for(let i = 0; i < 8760; i++) {
+      if ((hourlyGridImport[i] || 0) < 0.001) {
+          currentStreak++;
+          if (currentStreak > maxAutonomousHoursStreak) maxAutonomousHoursStreak = currentStreak;
+      } else {
+          currentStreak = 0;
+      }
+  }
+
   return {
     hourlyProduction,
     hourlyLoad,
@@ -590,8 +557,12 @@ export const runSimulation = (project: ProjectState): SimulationResult => {
     totalLoadKwh: totalLoad,
     selfConsumptionRatio: totalProduction > 0 ? (totalProduction - totalExport) / totalProduction : 0,
     autonomyRatio: totalLoad > 0 ? (totalLoad - totalImport) / totalLoad : 0,
+    
     totalShadingLossKwh,
-    shadingLossPercent: (totalShadingLossKwh / (totalProduction + totalShadingLossKwh)) * 100
+    shadingLossPercent: (totalShadingLossKwh / (totalProduction + totalShadingLossKwh)) * 100,
+
+    autonomousDaysCount,
+    maxAutonomousHoursStreak
   };
 };
 
@@ -620,8 +591,6 @@ export interface ImprovementSuggestion {
 
 export const generateScenarios = (baseProject: ProjectState): Scenario[] => {
     // (Implementation preserved from previous)
-    // ... [Content skipped for brevity, it's the same as before] ...
-    // Placeholder to allow file update without deleting logic
     const scenarios: Scenario[] = [];
     const simulate = (config: SystemConfig, segments: RoofSegment[], label: string, desc: string): Scenario | null => {
         const tempProject = { ...baseProject, systemConfig: config, roofSegments: segments };
@@ -666,7 +635,6 @@ export const generateScenarios = (baseProject: ProjectState): Scenario[] => {
 };
 
 export const analyzeResults = (project: ProjectState): ImprovementSuggestion[] => {
-    // (Implementation preserved)
     const suggestions: ImprovementSuggestion[] = [];
     const sim = project.simulationResult;
     if (!sim) return [];
@@ -684,7 +652,6 @@ export const analyzeResults = (project: ProjectState): ImprovementSuggestion[] =
     }
     if (sim.autonomyRatio > 0.9) suggestions.push({ id: 'high-autonomy', type: 'success', title: 'Excelente Independência', message: '>90%.' });
     
-    // Shading check
     if (sim.shadingLossPercent && sim.shadingLossPercent > 10) {
         suggestions.push({ id: 'high-shading', type: 'warning', title: 'Sombreamento Elevado', message: 'Perdas por sombra > 10%. Revise o espaçamento.'});
     }
