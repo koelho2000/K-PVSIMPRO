@@ -21,9 +21,17 @@ export interface FinancialResult {
 
 export const calculateFinancials = (project: ProjectState): FinancialResult => {
     // 1. Get Total Investment (CAPEX)
-    const budgetItems = calculateDetailedBudget(project);
-    const subtotal = budgetItems.reduce((sum, item) => sum + item.totalPrice, 0);
-    const totalInvestmentEur = subtotal * 1.06; // Assuming 6% IVA as in pricing.ts
+    // Use stored budget if available (edited by user), otherwise calculate default
+    let totalInvestmentEur = 0;
+    
+    if (project.budget && project.budget.length > 0) {
+        const subtotal = project.budget.reduce((sum, item) => sum + item.totalPrice, 0);
+        totalInvestmentEur = subtotal * 1.06; // IVA 6% assumption maintained
+    } else {
+        const budgetItems = calculateDetailedBudget(project);
+        const subtotal = budgetItems.reduce((sum, item) => sum + item.totalPrice, 0);
+        totalInvestmentEur = subtotal * 1.06; 
+    }
 
     // 2. Base Simulation Data
     const sim = project.simulationResult;
@@ -95,7 +103,7 @@ export const calculateFinancials = (project: ProjectState): FinancialResult => {
     // ROI = (Net Profit / Investment) * 100
     // Net Profit = Total Benefits - Investment
     const netProfit = totalSavings15YearsEur - totalInvestmentEur;
-    const roiPercent = (netProfit / totalInvestmentEur) * 100;
+    const roiPercent = totalInvestmentEur > 0 ? (netProfit / totalInvestmentEur) * 100 : 0;
 
     return {
         totalInvestmentEur,

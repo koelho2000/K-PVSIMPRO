@@ -153,6 +153,15 @@ export interface SimulationResult {
   shadingLossPercent: number;
 }
 
+export interface BudgetItem {
+    category: 'Modules' | 'Inverter' | 'Battery' | 'Structure' | 'Electrical' | 'Labor' | 'Services' | 'Other';
+    description: string;
+    unit: string;
+    quantity: number;
+    unitPrice: number;
+    totalPrice: number;
+}
+
 export interface ProjectState {
   id: string;
   createdDate: string;
@@ -163,5 +172,6 @@ export interface ProjectState {
   loadProfile: LoadProfile;
   roofSegments: RoofSegment[];
   systemConfig: SystemConfig;
+  budget?: BudgetItem[]; // Editable Budget
   simulationResult: SimulationResult | null;
 }

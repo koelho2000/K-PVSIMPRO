@@ -1,11 +1,12 @@
 
+
 // ... imports ...
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { ProjectState, ProjectSettings, LoadProfile, RoofSegment, SystemConfig, SolarPanel, Inverter, Battery, FinancialSettings } from './types';
+import { ProjectState, ProjectSettings, LoadProfile, RoofSegment, SystemConfig, SolarPanel, Inverter, Battery, FinancialSettings, BudgetItem } from './types';
 import { PANELS_DB, INVERTERS_DB, BATTERIES_DB, APP_VERSION, AUTHOR_NAME, AUTHOR_URL, STANDARD_LOAD_PROFILES, PORTUGAL_MUNICIPALITIES } from './constants';
 import { suggestSystem } from './services/geminiService';
 import { runSimulation, generateClimateData, generateScenarios, Scenario, parseEpw, generateSyntheticLoadProfile, analyzeResults, ImprovementSuggestion } from './services/solarService';
-import { calculateDetailedBudget, BudgetItem } from './services/pricing';
+import { calculateDetailedBudget, BudgetItem as PricingBudgetItem } from './services/pricing';
 import { calculateFinancials, FinancialResult } from './services/financialService';
 import { SimulationCharts } from './components/SimulationCharts';
 import { ClimateCharts } from './components/ClimateCharts';
@@ -15,6 +16,7 @@ import { ElectricalScheme } from './components/ElectricalScheme';
 import { ReportView } from './components/ReportView';
 import { MonitoringPlayer } from './components/MonitoringPlayer';
 import { OptimizationAnalysis } from './components/OptimizationAnalysis';
+import { BudgetEditor } from './components/BudgetEditor';
 import { Logo } from './components/Logo';
 import { 
   LayoutDashboard, MapPin, Sun, Layout, BatteryCharging, 
@@ -62,6 +64,7 @@ const INITIAL_PROJECT: ProjectState = {
     cableAcMeters: 10,
   },
   simulationResult: null,
+  budget: [] 
 };
 
 export default function App() {
@@ -88,6 +91,16 @@ export default function App() {
   const epwImportInputRef = useRef<HTMLInputElement>(null);
   const compareInputRef = useRef<HTMLInputElement>(null);
   const comparisonRef = useRef<HTMLDivElement>(null);
+
+  // Initialize Budget if empty on first load (legacy support)
+  useEffect(() => {
+     if (!project.budget || project.budget.length === 0) {
+         const autoBudget = calculateDetailedBudget(project);
+         // Do not trigger setProject loop, just ensure it's there if needed for other components
+         // However, since we want user control, we only set it if explicitly needed.
+         // Let's assume BudgetEditor handles the initial auto-fill if empty.
+     }
+  }, []);
 
   useEffect(() => {
     if (!project.climateData) {
@@ -164,6 +177,10 @@ export default function App() {
       setShowSuggestions(false);
       setActiveTab('results');
     }, 500); 
+  };
+  
+  const handleBudgetUpdate = (newBudget: BudgetItem[]) => {
+      setProject(prev => ({ ...prev, budget: newBudget }));
   };
 
   // ... (Other handlers preserved: handleAnalyze, handleGenerateScenarios, applyScenario, updateLoadProfile, handleLoadInputChange, handle8760Import, processImport, handleEpwImport, handleLoadExportCsv, exportJson, importJson, handleExportComparisonHTML, handleExportComparisonWord, suggestInverter, loadStats) ...
@@ -435,6 +452,7 @@ export default function App() {
         <div className="bg-white p-6 rounded-lg shadow border border-gray-100 hover:shadow-md transition cursor-pointer" onClick={() => setActiveTab('roof')}><div className="flex items-center gap-3 mb-2 text-blue-600"><Layout /> <h3 className="font-bold text-gray-800">5. Cobertura</h3></div><p className="text-sm text-gray-500">Desenhe áreas, margens e layout de painéis.</p></div>
         <div className="bg-white p-6 rounded-lg shadow border border-gray-100 hover:shadow-md transition cursor-pointer" onClick={() => setActiveTab('electrical')}><div className="flex items-center gap-3 mb-2 text-blue-600"><Cpu /> <h3 className="font-bold text-gray-800">6. Elétrico</h3></div><p className="text-sm text-gray-500">Verificação de strings e esquema unifilar.</p></div>
         <div className="bg-white p-6 rounded-lg shadow border border-gray-100 hover:shadow-md transition cursor-pointer" onClick={handleRunSimulation}><div className="flex items-center gap-3 mb-2 text-green-600"><FileText /> <h3 className="font-bold text-gray-800">7. Simulação</h3></div><p className="text-sm text-gray-500">Executar cálculo 8760h.</p></div>
+        <div className="bg-white p-6 rounded-lg shadow border border-gray-100 hover:shadow-md transition cursor-pointer" onClick={() => setActiveTab('budget')}><div className="flex items-center gap-3 mb-2 text-blue-600"><Calculator /> <h3 className="font-bold text-gray-800">9. Orçamento</h3></div><p className="text-sm text-gray-500">Edição de quantidades e preços detalhados.</p></div>
       </div>
       <div className="bg-white p-6 rounded-lg shadow border border-gray-100"><h3 className="text-lg font-bold text-gray-800 flex items-center gap-2 mb-4"><Coins className="text-yellow-600"/> Configuração Financeira (ROI)</h3><div className="grid grid-cols-1 md:grid-cols-3 gap-6"><div><label className="block text-sm font-medium mb-1 text-gray-600">Custo Eletricidade (€/kWh)</label><input type="number" step="0.01" className="w-full border p-2 rounded" value={project.financialSettings.electricityPriceEurKwh} onChange={(e) => setProject({...project, financialSettings: {...project.financialSettings, electricityPriceEurKwh: parseFloat(e.target.value)}})} /></div><div><label className="block text-sm font-medium mb-1 text-gray-600">Venda de Excedente (€/kWh)</label><input type="number" step="0.01" className="w-full border p-2 rounded" value={project.financialSettings.gridExportPriceEurKwh} onChange={(e) => setProject({...project, financialSettings: {...project.financialSettings, gridExportPriceEurKwh: parseFloat(e.target.value)}})} /></div><div><label className="block text-sm font-medium mb-1 text-gray-600">Inflação Energética Anual (%)</label><input type="number" step="0.1" className="w-full border p-2 rounded" value={project.financialSettings.inflationRate} onChange={(e) => setProject({...project, financialSettings: {...project.financialSettings, inflationRate: parseFloat(e.target.value)}})} /></div></div></div>
     </div>
@@ -548,13 +566,20 @@ export default function App() {
       const chartData = allProjects.map((p, i) => {
           const sim = p.simulationResult;
           const fin = calculateFinancials(p);
-          const budget = calculateDetailedBudget(p).reduce((s,x)=>s+x.totalPrice,0) * 1.06;
+          // Recalculate budget if dynamic, or use stored if exists
+          let investment = 0;
+          if (p.budget && p.budget.length > 0) {
+              investment = p.budget.reduce((s,x)=>s+x.totalPrice,0) * 1.06;
+          } else {
+              investment = calculateDetailedBudget(p).reduce((s,x)=>s+x.totalPrice,0) * 1.06;
+          }
+          
           return {
               name: i === 0 ? 'Atual' : `C${i}`,
               fullName: i === 0 ? 'Atual' : `Cenário ${i}`,
               production: sim ? Math.round(sim.totalProductionKwh) : 0,
               load: sim ? Math.round(sim.totalLoadKwh) : 0,
-              investment: Math.round(budget),
+              investment: Math.round(investment),
               savings: Math.round(fin.totalSavings15YearsEur),
               autoconsumption: sim ? parseFloat((sim.selfConsumptionRatio*100).toFixed(1)) : 0,
               autonomy: sim ? parseFloat((sim.autonomyRatio*100).toFixed(1)) : 0,
@@ -575,7 +600,13 @@ export default function App() {
                               <tr className="bg-slate-50 font-bold text-slate-500"><td colSpan={allProjects.length + 1} className="p-2 px-4 text-xs uppercase tracking-wider">Especificações do Sistema</td></tr>
                               <tr><td className="p-4 font-bold">Potência (kWp)</td>{allProjects.map((p, i) => { const panels = p.roofSegments.reduce((a,b)=>a+b.panelsCount,0); const panel = PANELS_DB.find(x=>x.id===p.systemConfig.selectedPanelId); const kwp = (panels * (panel?.powerW||0)) / 1000; return <td key={i} className="p-4">{kwp.toFixed(2)} kWp</td>})}</tr>
                               <tr><td className="p-4 font-bold">Baterias (kWh)</td>{allProjects.map((p, i) => { const bat = BATTERIES_DB.find(b=>b.id===p.systemConfig.selectedBatteryId); const cap = bat ? bat.capacityKwh * (p.systemConfig.batteryCount||1) : 0; return <td key={i} className="p-4">{cap.toFixed(1)} kWh</td>})}</tr>
-                              <tr><td className="p-4 font-bold">Investimento Estimado</td>{allProjects.map((p, i) => { const budget = calculateDetailedBudget(p).reduce((s,x)=>s+x.totalPrice,0) * 1.06; return <td key={i} className="p-4">{budget.toLocaleString('pt-PT', {style:'currency', currency:'EUR', maximumFractionDigits:0})}</td>})}</tr>
+                              <tr><td className="p-4 font-bold">Investimento Estimado</td>{allProjects.map((p, i) => { 
+                                  // Use stored or calc
+                                  let budget = 0;
+                                  if(p.budget && p.budget.length>0) budget = p.budget.reduce((s,x)=>s+x.totalPrice,0) * 1.06;
+                                  else budget = calculateDetailedBudget(p).reduce((s,x)=>s+x.totalPrice,0) * 1.06; 
+                                  return <td key={i} className="p-4">{budget.toLocaleString('pt-PT', {style:'currency', currency:'EUR', maximumFractionDigits:0})}</td>
+                                  })}</tr>
                               <tr className="bg-slate-50 font-bold text-slate-500"><td colSpan={allProjects.length + 1} className="p-2 px-4 text-xs uppercase tracking-wider">Financeiro (15 Anos)</td></tr>
                               <tr><td className="p-4 font-bold">Poupança Total</td>{allProjects.map((p, i) => <td key={i} className="p-4 text-green-700 font-bold">{calculateFinancials(p).totalSavings15YearsEur.toLocaleString('pt-PT', {style:'currency', currency:'EUR', maximumFractionDigits:0})}</td>)}</tr>
                               <tr><td className="p-4 font-bold">Payback (Anos)</td>{allProjects.map((p, i) => <td key={i} className="p-4">{calculateFinancials(p).paybackPeriodYears.toFixed(1)}</td>)}</tr>
@@ -608,6 +639,7 @@ export default function App() {
           <NavButton active={activeTab === 'electrical'} onClick={() => setActiveTab('electrical')} icon={<Cpu size={20} />} label="6. Elétrico" />
           <NavButton active={activeTab === 'results'} onClick={() => setActiveTab('results')} icon={<FileText size={20} />} label="7. Simulação" warning={isDirty} />
           <NavButton active={activeTab === 'monitor'} onClick={() => setActiveTab('monitor')} icon={<Tv size={20} />} label="8. Monitorização" />
+          <NavButton active={activeTab === 'budget'} onClick={() => setActiveTab('budget')} icon={<Calculator size={20} />} label="9. Orçamento" />
           <NavButton active={activeTab === 'report'} onClick={() => setActiveTab('report')} icon={<Printer size={20} />} label="Relatório" />
           <NavButton active={activeTab === 'compare'} onClick={() => setActiveTab('compare')} icon={<Copy size={20} />} label="Comparar" />
         </nav>
@@ -653,6 +685,7 @@ export default function App() {
         {activeTab === 'electrical' && <ElectricalScheme project={project} onUpdateProject={setProject} />}
         {activeTab === 'system' && renderSystem()}
         {activeTab === 'results' && renderResults()}
+        {activeTab === 'budget' && <BudgetEditor project={project} onUpdate={handleBudgetUpdate} />}
         {activeTab === 'report' && <ReportView project={project} />}
         {activeTab === 'compare' && renderComparison()}
         {activeTab === 'monitor' && <MonitoringPlayer project={project} />}
