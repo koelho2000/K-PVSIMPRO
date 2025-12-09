@@ -1,18 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { ProjectState, BudgetItem } from '../types';
+import { ProjectState, BudgetItem, FinancialSettings } from '../types';
 import { calculateDetailedBudget } from '../services/pricing';
 import { Calculator, Plus, Trash2, RotateCcw, Save, DollarSign, FileText } from 'lucide-react';
 
 interface Props {
     project: ProjectState;
     onUpdate: (budget: BudgetItem[]) => void;
+    onUpdateSettings?: (settings: Partial<FinancialSettings>) => void;
 }
 
 const CATEGORIES = ['Modules', 'Inverter', 'Battery', 'Structure', 'Electrical', 'Labor', 'Services', 'Other'];
 
-export const BudgetEditor: React.FC<Props> = ({ project, onUpdate }) => {
+export const BudgetEditor: React.FC<Props> = ({ project, onUpdate, onUpdateSettings }) => {
     // Local state for editing
     const [items, setItems] = useState<BudgetItem[]>([]);
+    const [vatRate, setVatRate] = useState<number>(23);
 
     useEffect(() => {
         if (project.budget && project.budget.length > 0) {
@@ -20,16 +22,9 @@ export const BudgetEditor: React.FC<Props> = ({ project, onUpdate }) => {
         } else {
             handleResetToAuto();
         }
+        // Init VAT from project or default
+        setVatRate(project.financialSettings.vatRate ?? 23);
     }, []);
-
-    // Sync to parent when items change (debounced or on blur? doing simple sync for now)
-    useEffect(() => {
-        if (items.length > 0) {
-           // We don't auto-sync constantly to avoid parent re-renders if not needed, 
-           // but for this app structure, we need to save eventually.
-           // Ideally we save on a button press or on unmount, but let's provide a save button.
-        }
-    }, [items]);
 
     const handleResetToAuto = () => {
         const auto = calculateDetailedBudget(project);
@@ -39,7 +34,10 @@ export const BudgetEditor: React.FC<Props> = ({ project, onUpdate }) => {
 
     const handleSave = () => {
         onUpdate(items);
-        alert("Orçamento guardado com sucesso!");
+        if (onUpdateSettings) {
+            onUpdateSettings({ vatRate });
+        }
+        alert("Orçamento e IVA guardados com sucesso!");
     };
 
     const handleItemChange = (index: number, field: keyof BudgetItem, value: any) => {
@@ -71,7 +69,7 @@ export const BudgetEditor: React.FC<Props> = ({ project, onUpdate }) => {
     };
 
     const subtotal = items.reduce((acc, item) => acc + item.totalPrice, 0);
-    const tax = subtotal * 0.06; // IVA
+    const tax = subtotal * (vatRate / 100);
     const total = subtotal + tax;
 
     return (
@@ -197,8 +195,17 @@ export const BudgetEditor: React.FC<Props> = ({ project, onUpdate }) => {
                             <span className="text-gray-500">Subtotal (S/ IVA)</span>
                             <span className="font-bold text-gray-800">{subtotal.toLocaleString('pt-PT', {style:'currency', currency:'EUR'})}</span>
                         </div>
-                        <div className="flex justify-between text-sm">
-                            <span className="text-gray-500">IVA (6%)</span>
+                        <div className="flex justify-between items-center text-sm">
+                            <span className="text-gray-500 flex items-center gap-2">
+                                IVA (%) 
+                                <input 
+                                    type="number" 
+                                    min="0" max="100" 
+                                    className="w-16 border rounded p-1 text-center font-bold text-gray-700" 
+                                    value={vatRate}
+                                    onChange={(e) => setVatRate(parseFloat(e.target.value) || 0)}
+                                />
+                            </span>
                             <span className="font-bold text-gray-800">{tax.toLocaleString('pt-PT', {style:'currency', currency:'EUR'})}</span>
                         </div>
                         <div className="flex justify-between text-xl font-extrabold text-blue-900 border-t pt-4 mt-2">

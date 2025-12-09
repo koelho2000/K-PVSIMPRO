@@ -24,13 +24,16 @@ export const calculateFinancials = (project: ProjectState): FinancialResult => {
     // Use stored budget if available (edited by user), otherwise calculate default
     let totalInvestmentEur = 0;
     
+    // Default VAT to 23% if undefined
+    const vatRate = (project.financialSettings.vatRate ?? 23) / 100;
+    
     if (project.budget && project.budget.length > 0) {
         const subtotal = project.budget.reduce((sum, item) => sum + item.totalPrice, 0);
-        totalInvestmentEur = subtotal * 1.06; // IVA 6% assumption maintained
+        totalInvestmentEur = subtotal * (1 + vatRate);
     } else {
         const budgetItems = calculateDetailedBudget(project);
         const subtotal = budgetItems.reduce((sum, item) => sum + item.totalPrice, 0);
-        totalInvestmentEur = subtotal * 1.06; 
+        totalInvestmentEur = subtotal * (1 + vatRate);
     }
 
     // 2. Base Simulation Data

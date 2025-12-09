@@ -1,9 +1,10 @@
 
+
 import React, { useMemo } from 'react';
 import { ProjectState } from '../types';
 import { calculateStringing, findOptimalConfiguration } from '../services/electricalService';
 import { PANELS_DB, INVERTERS_DB } from '../constants';
-import { CheckCircle, AlertTriangle, XCircle, Zap, Activity, Wrench, ShieldCheck } from 'lucide-react';
+import { CheckCircle, AlertTriangle, XCircle, Zap, Activity, Wrench, ShieldCheck, Ruler } from 'lucide-react';
 
 interface Props {
   project: ProjectState;
@@ -16,6 +17,11 @@ export const ElectricalScheme: React.FC<Props> = ({ project, onUpdateProject }) 
   const inverter = INVERTERS_DB.find(i => i.id === project.systemConfig.selectedInverterId);
   const panel = PANELS_DB.find(p => p.id === project.systemConfig.selectedPanelId);
 
+  // Distances
+  const distPanelsBox = project.systemConfig.cableDcPanelsToBox || 15;
+  const distBoxInv = project.systemConfig.cableDcBoxToInverter || 5;
+  const distAc = project.systemConfig.cableAcMeters || 10;
+
   const handleOptimize = () => {
       const solution = findOptimalConfiguration(project);
       if (solution && onUpdateProject) {
@@ -25,6 +31,19 @@ export const ElectricalScheme: React.FC<Props> = ({ project, onUpdateProject }) 
       } else {
           alert("O algoritmo não encontrou uma solução automática óbvia com a base de dados atual. Tente reduzir o número de painéis ou escolher um inversor de gama superior manualmente.");
       }
+  };
+
+  const handleDistanceChange = (field: 'cableDcPanelsToBox' | 'cableDcBoxToInverter' | 'cableAcMeters', value: number) => {
+      if (!onUpdateProject) return;
+      
+      const newConfig = { ...project.systemConfig, [field]: value };
+      
+      // Keep total updated for legacy compatibility
+      if (field === 'cableDcPanelsToBox' || field === 'cableDcBoxToInverter') {
+          newConfig.cableDcMeters = (newConfig.cableDcPanelsToBox || 0) + (newConfig.cableDcBoxToInverter || 0);
+      }
+
+      onUpdateProject({ ...project, systemConfig: newConfig });
   };
 
   // SVG Diagram Helpers
@@ -92,7 +111,51 @@ export const ElectricalScheme: React.FC<Props> = ({ project, onUpdateProject }) 
           </div>
       )}
 
-      {/* 2. String Table */}
+      {/* 2. Cable Geometry Configuration (New) */}
+      <div className="bg-white p-6 rounded shadow border">
+          <h3 className="text-lg font-bold mb-4 text-gray-800 flex items-center gap-2"><Ruler className="text-blue-600"/> Geometria da Cablagem (Distâncias)</h3>
+          <p className="text-sm text-gray-500 mb-6">Defina os comprimentos dos troços de cabo para cálculo rigoroso de quantidades e orçamento.</p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div>
+                  <label className="block text-xs font-bold text-gray-600 uppercase mb-2">Painéis &rarr; Quadro DC</label>
+                  <div className="flex items-center gap-2">
+                      <input 
+                        type="number" min="1" className="border rounded p-2 w-full font-bold text-slate-700" 
+                        value={distPanelsBox} 
+                        onChange={(e) => handleDistanceChange('cableDcPanelsToBox', parseFloat(e.target.value))}
+                      />
+                      <span className="text-sm text-gray-500">m</span>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-1">Cabo Solar 4-6mm²</p>
+              </div>
+              <div>
+                  <label className="block text-xs font-bold text-gray-600 uppercase mb-2">Quadro DC &rarr; Inversor</label>
+                  <div className="flex items-center gap-2">
+                      <input 
+                        type="number" min="1" className="border rounded p-2 w-full font-bold text-slate-700" 
+                        value={distBoxInv} 
+                        onChange={(e) => handleDistanceChange('cableDcBoxToInverter', parseFloat(e.target.value))}
+                      />
+                      <span className="text-sm text-gray-500">m</span>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-1">Cabo Solar 4-6mm²</p>
+              </div>
+              <div>
+                  <label className="block text-xs font-bold text-gray-600 uppercase mb-2">Inversor &rarr; Quadro AC</label>
+                  <div className="flex items-center gap-2">
+                      <input 
+                        type="number" min="1" className="border rounded p-2 w-full font-bold text-slate-700" 
+                        value={distAc} 
+                        onChange={(e) => handleDistanceChange('cableAcMeters', parseFloat(e.target.value))}
+                      />
+                      <span className="text-sm text-gray-500">m</span>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-1">Cabo AC XV</p>
+              </div>
+          </div>
+      </div>
+
+      {/* 3. String Table */}
       <div className="bg-white p-6 rounded shadow border">
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-lg font-bold text-gray-800">Configuração de Strings (Por Inversor)</h3>
@@ -137,7 +200,7 @@ export const ElectricalScheme: React.FC<Props> = ({ project, onUpdateProject }) 
           </div>
       </div>
 
-      {/* 3. Sizing Dashboard */}
+      {/* 4. Sizing Dashboard */}
       <div className="bg-slate-50 border border-slate-200 rounded p-6">
           <h3 className="text-lg font-bold text-slate-700 mb-4 flex items-center gap-2"><ShieldCheck size={20}/> Dimensionamento de Cabos e Proteções</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
@@ -164,7 +227,7 @@ export const ElectricalScheme: React.FC<Props> = ({ project, onUpdateProject }) 
           </div>
       </div>
 
-      {/* 4. Single Line Diagram */}
+      {/* 5. Single Line Diagram */}
       <div className="bg-white p-6 rounded shadow border">
           <h3 className="text-lg font-bold mb-6 text-gray-800">Esquema Unifilar (Simplificado)</h3>
           <div className="border border-gray-300 rounded bg-slate-50 overflow-x-auto p-4 flex justify-center">
@@ -186,9 +249,11 @@ export const ElectricalScheme: React.FC<Props> = ({ project, onUpdateProject }) 
                               <text x={startX+25} y={yOffset-10} textAnchor="middle" fontSize="10" fontWeight="bold" fill="#334155">MPPT {str.mpptId}</text>
                               <text x={startX+25} y={yOffset+25} textAnchor="middle" fontSize="9" fill="#0369a1">{str.numStrings}x{str.panelsPerString}</text>
                               
-                              {/* DC Line */}
+                              {/* DC Line (Panels -> Box) */}
                               <line x1={startX+50} y1={yOffset+20} x2={startX+150} y2={yOffset+20} stroke="#334155" strokeWidth="2" />
-                              <text x={startX+100} y={yOffset+15} textAnchor="middle" fontSize="9" fill="#64748b">{result.cables.dcStringMm2}mm²</text>
+                              {/* Distance Label on Line */}
+                              <text x={startX+100} y={yOffset+12} textAnchor="middle" fontSize="8" fill="#64748b" fontWeight="bold">{distPanelsBox}m</text>
+                              <text x={startX+100} y={yOffset+28} textAnchor="middle" fontSize="8" fill="#64748b">{result.cables.dcStringMm2}mm²</text>
                           </g>
                       )
                   })}
@@ -206,14 +271,22 @@ export const ElectricalScheme: React.FC<Props> = ({ project, onUpdateProject }) 
                       ))}
                   </g>
 
-                  {/* Inverter Connection */}
+                  {/* Inverter Connection (Box -> Inverter) */}
                   {/* Collect lines to inverter center */}
                   {result.strings.map((_, idx) => {
                       const yStart = startY + (idx * 80) + 20;
                       const yEnd = startY + ((result.strings.length - 1) * 40) + 20; // Middleish
+                      const isMiddle = idx === Math.floor(result.strings.length/2);
                       return (
-                        <path key={idx} d={`M${startX+230},${yStart} L${startX+260},${yStart} L${startX+260},${yEnd} L${startX+300},${yEnd}`} 
-                              fill="none" stroke="#334155" strokeWidth="2" markerEnd={idx === Math.floor(result.strings.length/2) ? "url(#arrow)" : ""} />
+                        <g key={idx}>
+                            <path d={`M${startX+230},${yStart} L${startX+260},${yStart} L${startX+260},${yEnd} L${startX+300},${yEnd}`} 
+                                fill="none" stroke="#334155" strokeWidth="2" markerEnd={isMiddle ? "url(#arrow)" : ""} />
+                            {isMiddle && (
+                                <>
+                                    <text x={startX+280} y={yEnd-5} textAnchor="middle" fontSize="9" fill="#64748b" fontWeight="bold">{distBoxInv}m</text>
+                                </>
+                            )}
+                        </g>
                       );
                   })}
                   
@@ -225,9 +298,10 @@ export const ElectricalScheme: React.FC<Props> = ({ project, onUpdateProject }) 
                       <text x="60" y="60" textAnchor="middle" fontSize="10" fill="#854d0e">{inverterCount} Unidade(s)</text>
                   </g>
 
-                  {/* AC Output */}
+                  {/* AC Output (Inverter -> AC Box) */}
                   <line x1={startX+420} y1={startY+((result.strings.length-1)*40)+20} x2={startX+500} y2={startY+((result.strings.length-1)*40)+20} stroke="#334155" strokeWidth="2" />
-                  <text x={startX+460} y={startY+((result.strings.length-1)*40)+15} textAnchor="middle" fontSize="10" fill="#64748b">{result.cables.acMm2}mm²</text>
+                  <text x={startX+460} y={startY+((result.strings.length-1)*40)+12} textAnchor="middle" fontSize="9" fill="#64748b" fontWeight="bold">{distAc}m</text>
+                  <text x={startX+460} y={startY+((result.strings.length-1)*40)+28} textAnchor="middle" fontSize="9" fill="#64748b">{result.cables.acMm2}mm²</text>
 
                   {/* AC Box */}
                   <g transform={`translate(${startX+500}, ${startY + ((result.strings.length-1)*40) - 20})`}>

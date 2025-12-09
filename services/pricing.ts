@@ -1,9 +1,10 @@
 
+
 import { ProjectState } from "../types";
 import { PRICING_DB, PANELS_DB, INVERTERS_DB, BATTERIES_DB } from "../constants";
 
 export interface BudgetItem {
-    category: 'Modules' | 'Inverter' | 'Battery' | 'Structure' | 'Electrical' | 'Labor' | 'Services';
+    category: 'Modules' | 'Inverter' | 'Battery' | 'Structure' | 'Electrical' | 'Labor' | 'Services' | 'Other';
     description: string;
     unit: string;
     quantity: number;
@@ -95,10 +96,18 @@ export const calculateDetailedBudget = (project: ProjectState): BudgetItem[] => 
     // 3. Electrical (Cables & Protection)
     
     // DC Cables
-    // 2 cables (+/-) * distance * number of strings (assume 1 string per 10 panels approx)
+    // Logic Adjusted:
+    // Uses separate segments: Panels -> DC Box, and DC Box -> Inverter
     const numStrings = Math.ceil(totalPanels / 10) || 1;
-    const dcDist = systemConfig.cableDcMeters || 15; // default 15m
-    const dcCableQty = (dcDist * 2 * numStrings) + (totalPanels * 1.5); // Run + Interconnects
+    
+    // Use specific segments if available, otherwise fall back to legacy total or defaults
+    const distPanelsBox = systemConfig.cableDcPanelsToBox ?? (systemConfig.cableDcMeters ? systemConfig.cableDcMeters * 0.75 : 15);
+    const distBoxInv = systemConfig.cableDcBoxToInverter ?? (systemConfig.cableDcMeters ? systemConfig.cableDcMeters * 0.25 : 5);
+    
+    const totalDcRunPerString = distPanelsBox + distBoxInv;
+    
+    // Total DC Cable = (Run * 2 for +/- * numStrings) + (Inter-row jumps approx 10m/string)
+    const dcCableQty = (totalDcRunPerString * 2 * numStrings) + (numStrings * 10);
     
     items.push({
         category: 'Electrical',

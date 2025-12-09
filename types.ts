@@ -111,6 +111,7 @@ export interface FinancialSettings {
     gridExportPriceEurKwh: number; // Price to sell
     inflationRate: number; // %
     panelDegradation: number; // % per year
+    vatRate?: number; // IVA %
 }
 
 export interface SystemConfig {
@@ -121,8 +122,12 @@ export interface SystemConfig {
   batteryCount: number; // Number of battery units
   optimizationGoal: 'autoconsumption' | 'production' | 'injection' | 'balanced';
   // Cable Distances
-  cableDcMeters: number; // Total distance from roof to inverter
+  cableDcMeters: number; // Legacy total distance (maintained for compatibility)
   cableAcMeters: number; // Total distance from inverter to main board
+  
+  // Specific Segments
+  cableDcPanelsToBox?: number; // Roof to Combiner Box
+  cableDcBoxToInverter?: number; // Combiner Box to Inverter
 }
 
 export interface SimulationResult {
