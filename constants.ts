@@ -423,6 +423,7 @@ export const PRICING_DB = {
     protection_board_dc: { name: 'Quadro Proteção DC (String Box)', unit: 'un', price: 150.00 },
     protection_board_ac_1ph: { name: 'Quadro Proteção AC (Monofásico)', unit: 'un', price: 120.00 },
     protection_board_ac_3ph: { name: 'Quadro Proteção AC (Trifásico)', unit: 'un', price: 190.00 },
+    protection_interconnection: { name: 'Relé de Proteção Homopolar / Interligação (>250kW)', unit: 'un', price: 3500.00 },
     smart_meter: { name: 'Smart Meter / Medidor de Energia', unit: 'un', price: 250.00 },
     
     labor_specialized: { name: 'Mão de Obra Especializada (Instalação)', unit: 'h', price: 35.00 },

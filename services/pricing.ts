@@ -1,5 +1,6 @@
 
 
+
 import { ProjectState } from "../types";
 import { PRICING_DB, PANELS_DB, INVERTERS_DB, BATTERIES_DB } from "../constants";
 
@@ -160,6 +161,19 @@ export const calculateDetailedBudget = (project: ProjectState): BudgetItem[] => 
         unitPrice: isThreePhase ? PRICING_DB.protection_board_ac_3ph.price : PRICING_DB.protection_board_ac_1ph.price,
         totalPrice: isThreePhase ? PRICING_DB.protection_board_ac_3ph.price : PRICING_DB.protection_board_ac_1ph.price
     });
+
+    // Check for > 250kW mandatory Interconnection Protection
+    const totalAcKw = (inverter?.maxPowerKw || 0) * (systemConfig.inverterCount || 1);
+    if (totalAcKw > 250) {
+        items.push({
+            category: 'Electrical',
+            description: PRICING_DB.protection_interconnection.name,
+            unit: 'un',
+            quantity: 1,
+            unitPrice: PRICING_DB.protection_interconnection.price,
+            totalPrice: PRICING_DB.protection_interconnection.price
+        });
+    }
     
     // Smart Meter
     items.push({

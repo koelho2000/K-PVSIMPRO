@@ -1,5 +1,6 @@
 
 
+
 import React, { useMemo } from 'react';
 import { ProjectState } from '../types';
 import { calculateStringing, findOptimalConfiguration } from '../services/electricalService';
@@ -16,6 +17,7 @@ export const ElectricalScheme: React.FC<Props> = ({ project, onUpdateProject }) 
   const inverterCount = project.systemConfig.inverterCount || 1;
   const inverter = INVERTERS_DB.find(i => i.id === project.systemConfig.selectedInverterId);
   const panel = PANELS_DB.find(p => p.id === project.systemConfig.selectedPanelId);
+  const totalAcPowerKw = result.metrics.totalAcPowerKw;
 
   // Distances
   const distPanelsBox = project.systemConfig.cableDcPanelsToBox || 15;
@@ -83,6 +85,19 @@ export const ElectricalScheme: React.FC<Props> = ({ project, onUpdateProject }) 
               </div>
           </div>
       </div>
+
+      {totalAcPowerKw > 250 && (
+        <div className="bg-orange-50 border-l-4 border-orange-500 p-4 rounded shadow-sm">
+            <h4 className="font-bold text-orange-800 flex items-center gap-2">
+                <ShieldCheck size={20}/> Requisito Legal (>250kW)
+            </h4>
+            <p className="text-sm text-orange-800 mt-1">
+                Para instalações superiores a 250kW, é obrigatória a instalação de <strong>Proteção de interligação/homopolar</strong> para separação automática da rede.
+                <br/>
+                <span className="text-xs">Função: Deteção e atuação rápida para evitar injeção de energia em redes desenergizadas ou com desequilíbrios.</span>
+            </p>
+        </div>
+      )}
 
       {/* Warnings & Errors + Fix Button */}
       {(result.errors.length > 0 || result.warnings.length > 0) && (
