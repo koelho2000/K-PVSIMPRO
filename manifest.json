@@ -1,0 +1,76 @@
+{
+  "id": "com.koelho2000.kpvprosim",
+  "name": "K-PVPROSIM - Simulação Fotovoltaica Profissional",
+  "short_name": "K-PVPROSIM",
+  "description": "Simulador profissional de sistemas fotovoltaicos com análise financeira, design de cobertura e licenciamento UPAC.",
+  "lang": "pt-PT",
+  "dir": "ltr",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
+  "background_color": "#f8fafc",
+  "theme_color": "#1e3a8a",
+  "orientation": "any",
+  "categories": ["productivity", "business", "utilities"],
+  "iarc_rating_id": "e",
+  "prefer_related_applications": false,
+  "icons": [
+    {
+      "src": "https://img.icons8.com/fluency/192/sun.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any"
+    },
+    {
+      "src": "https://img.icons8.com/fluency/512/sun.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any"
+    },
+    {
+      "src": "https://img.icons8.com/fluency/192/sun.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "maskable"
+    },
+    {
+      "src": "https://img.icons8.com/fluency/512/sun.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "https://images.unsplash.com/photo-1508514177221-188b1cf16e9d?q=80&w=1920&auto=format&fit=crop",
+      "sizes": "1920x1080",
+      "type": "image/jpeg",
+      "form_factor": "wide",
+      "label": "Painel de Controlo da Simulação Fotovoltaica"
+    },
+    {
+      "src": "https://images.unsplash.com/photo-1613665813446-82a78c468a1d?q=80&w=1080&auto=format&fit=crop",
+      "sizes": "1080x1920",
+      "type": "image/jpeg",
+      "form_factor": "narrow",
+      "label": "Visualização Mobile do Simulador"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Nova Simulação",
+      "short_name": "Nova",
+      "description": "Iniciar um novo projeto fotovoltaico",
+      "url": "./index.html?action=new",
+      "icons": [{ "src": "https://img.icons8.com/fluency/96/plus.png", "sizes": "96x96" }]
+    },
+    {
+      "name": "Ver Relatórios",
+      "short_name": "Relatórios",
+      "description": "Aceder aos relatórios gerados",
+      "url": "./index.html?action=reports",
+      "icons": [{ "src": "https://img.icons8.com/fluency/96/file.png", "sizes": "96x96" }]
+    }
+  ]
+}
